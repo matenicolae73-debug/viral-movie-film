@@ -31,3 +31,10 @@ The current app generates individual 5-second scenes. It does not yet stitch all
 - The Generate Scene button is disabled while the request is running to prevent duplicate paid requests.
 - Vidu Q3 Turbo remains server-side through FAL_KEY.
 - Test with 5-second 540p scenes first; fal.ai charges for inference.
+
+
+## V4.2 Character Selection Fix
+- Characters are now real selectable client-side cards.
+- Selected character is highlighted and shown in the AI Video panel.
+- The selected character description is added to the Vidu scene prompt for continuity.
+- Project export includes the selected character.
