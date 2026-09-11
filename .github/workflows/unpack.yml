@@ -1,0 +1,45 @@
+name: Unpack ViralMovie AI
+
+on:
+  push:
+    paths:
+      - "*.zip"
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unpack ZIP
+        run: |
+          set -e
+
+          ZIP=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "Nu exista niciun ZIP."
+            exit 1
+          fi
+
+          mkdir unpack_tmp
+          unzip -o "$ZIP" -d unpack_tmp
+
+          cp -R unpack_tmp/* .
+          rm -rf unpack_tmp "$ZIP"
+
+      - name: Commit files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          git diff --cached --quiet || git commit -m "Unpack ViralMovie AI"
+
+          git push
