@@ -1,7 +1,10 @@
-# ViralMovie AI V3 — Interactive Movie Studio
+# ViralMovie AI V4 — Interactive + Build Fix
 
-IDEA → AI STORY → CHARACTERS → STORYBOARD → AI VIDEO → AUDIO → MOVIE → EXPORT
+Fixed:
+- `NextResponse` imports now use `next/server`.
+- Story API returns scene data.
+- All 8 Movie Pipeline buttons are interactive.
+- Characters, audio toggles and Export Project JSON have working client actions.
+- AI Video button opens the selected scene and calls the server route when FAL_KEY is configured.
 
-V3 makes all eight pipeline steps clickable, adds storyboard scene cards, duration 1/3/5/10/30/60 minutes, aspect ratio selection and a Vidu Q3 Turbo submission route.
-
-The story endpoint is a structured planning/demo generator, not an LLM. Video generation requires a private FAL_KEY in Vercel and provider credits. Full multi-scene stitching, audio, auth, credits and Stripe are later production modules.
+Use 1 minute for the first test. Full automatic final movie stitching is not yet implemented.
