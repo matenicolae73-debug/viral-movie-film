@@ -14,43 +14,51 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find ZIP
+      - name: Find first ViralMovie ZIP
         run: |
           set -e
 
-          ZIP=$(find . -type f -name "*.zip" -not -path "./.git/*" | head -n 1)
+          ZIP=$(find . -maxdepth 1 -type f \
+            -name "ViralMovie-AI-V2-60MIN.zip" | head -n 1)
 
           if [ -z "$ZIP" ]; then
-            echo "EROARE: NU EXISTA NICIUN ZIP IN REPO!"
+            echo "EROARE: ViralMovie-AI-V2-60MIN.zip NU a fost gasit."
+            echo "Fisiere gasite:"
+            ls -la
             exit 1
           fi
 
-          echo "ZIP GASIT:"
-          echo "$ZIP"
-          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "ZIP GASIT: $ZIP"
 
-      - name: Unzip
+      - name: Unzip first ViralMovie ZIP
         run: |
           set -e
-
-          mkdir -p extracted
-
-          unzip -o "$ZIP" -d extracted
-
-          echo "FISIERE EXTRASE:"
-          find extracted -type f | sort
-
-      - name: Install files
-        run: |
-          set -e
-
-          cp -R extracted/. .
 
           rm -rf extracted
-          rm -f "$ZIP"
+          mkdir extracted
 
-      - name: Commit
+          unzip -o "ViralMovie-AI-V2-60MIN.zip" -d extracted
+
+          echo "ZIP DEZARHIVAT CU SUCCES."
+
+      - name: Copy project files
         run: |
+          set -e
+
+          # Copiem proiectul, dar NU atingem .github/workflows
+          # pentru a evita eroarea de permisiuni GitHub.
+          find extracted -mindepth 1 -maxdepth 1 ! -name ".github" \
+            -exec cp -R {} . \;
+
+          # Daca ZIP-ul contine un folder .github, il ignoram intentionat.
+
+          rm -rf extracted
+          rm -f "ViralMovie-AI-V2-60MIN.zip"
+
+      - name: Commit project
+        run: |
+          set -e
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
