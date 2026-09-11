@@ -1,12 +1,14 @@
-name: Install ViralMovie AI V2
+name: Install ViralMovie AI V3
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "*.zip"
 
 jobs:
   install:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
@@ -14,46 +16,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find first ViralMovie ZIP
+      - name: Find V3 ZIP
         run: |
           set -e
 
-          ZIP=$(find . -maxdepth 1 -type f \
-            -name "ViralMovie-AI-V2-60MIN.zip" | head -n 1)
+          ZIP="./ViralMovie-AI-V3-Interactive.zip"
 
-          if [ -z "$ZIP" ]; then
-            echo "EROARE: ViralMovie-AI-V2-60MIN.zip NU a fost gasit."
-            echo "Fisiere gasite:"
-            ls -la
+          if [ ! -f "$ZIP" ]; then
+            echo "EROARE: ZIP-ul V3 nu exista:"
+            ls -lah
             exit 1
           fi
 
-          echo "ZIP GASIT: $ZIP"
+          echo "ZIP GASIT:"
+          ls -lh "$ZIP"
 
-      - name: Unzip first ViralMovie ZIP
+      - name: Unzip V3
         run: |
           set -e
-
           rm -rf extracted
           mkdir extracted
 
-          unzip -o "ViralMovie-AI-V2-60MIN.zip" -d extracted
+          unzip -o "./ViralMovie-AI-V3-Interactive.zip" -d extracted
 
-          echo "ZIP DEZARHIVAT CU SUCCES."
+          echo "FISIERE EXTRASE:"
+          find extracted -maxdepth 4 -type f | sort
 
-      - name: Copy project files
+      - name: Copy project
         run: |
           set -e
 
-          # Copiem proiectul, dar NU atingem .github/workflows
-          # pentru a evita eroarea de permisiuni GitHub.
-          find extracted -mindepth 1 -maxdepth 1 ! -name ".github" \
+          find extracted -mindepth 1 -maxdepth 1 \
+            ! -name ".github" \
             -exec cp -R {} . \;
 
-          # Daca ZIP-ul contine un folder .github, il ignoram intentionat.
-
           rm -rf extracted
-          rm -f "ViralMovie-AI-V2-60MIN.zip"
+          rm -f "./ViralMovie-AI-V3-Interactive.zip"
 
       - name: Commit project
         run: |
@@ -67,6 +65,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "Nu exista modificari."
           else
-            git commit -m "Install ViralMovie AI V2"
+            git commit -m "Install ViralMovie AI V3"
             git push
           fi
