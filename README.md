@@ -1,10 +1,18 @@
-# ViralMovie AI V4 — Interactive + Build Fix
+# ViralMovie AI V4 — Professional Movie Studio
 
-Fixed:
-- `NextResponse` imports now use `next/server`.
-- Story API returns scene data.
-- All 8 Movie Pipeline buttons are interactive.
-- Characters, audio toggles and Export Project JSON have working client actions.
-- AI Video button opens the selected scene and calls the server route when FAL_KEY is configured.
+Includes:
+- Professional dark cinematic dashboard UI inspired by the approved ViralMovie AI design.
+- Hero cinematic artwork and responsive mobile layout.
+- All 8 Movie Pipeline steps are clickable.
+- AI Story + storyboard + character test module.
+- Vidu Q3 Turbo video generation through server-side `FAL_KEY`.
+- 5-second 540p scene generation for economical testing.
+- Live generation status polling.
+- Video Preview and Download Video.
+- Facebook, Instagram, TikTok, YouTube and native Share buttons.
+- Audio controls and Project Export.
 
-Use 1 minute for the first test. Full automatic final movie stitching is not yet implemented.
+Important:
+- Keep `FAL_KEY` only in Vercel Environment Variables; never put it in client code.
+- The current version downloads generated scenes individually. Automatic multi-scene movie stitching is a later production step.
+- The ZIP filename is intentionally `ViralMovie-AI-V4-FIXED.zip` so the existing GitHub unpack workflow does not need to be changed.
