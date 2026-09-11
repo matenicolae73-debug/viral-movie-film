@@ -1,9 +1,7 @@
 name: Install ViralMovie AI V2
 
 on:
-  push:
-    paths:
-      - "*.zip"
+  workflow_dispatch:
 
 jobs:
   install:
@@ -16,35 +14,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find ViralMovie ZIP
+      - name: Find ZIP
         run: |
           set -e
 
-          ZIP=$(find . -maxdepth 1 -type f -name "ViralMovie-AI-V2-60MIN.zip" | head -n 1)
+          ZIP=$(find . -type f -name "*.zip" -not -path "./.git/*" | head -n 1)
 
           if [ -z "$ZIP" ]; then
-            echo "EROARE: ViralMovie-AI-V2-60MIN.zip nu a fost gasit."
-            echo "Fisierele din root sunt:"
-            ls -la
+            echo "EROARE: NU EXISTA NICIUN ZIP IN REPO!"
             exit 1
           fi
 
-          echo "GASIT: $ZIP"
+          echo "ZIP GASIT:"
+          echo "$ZIP"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
 
-      - name: Extract ZIP
+      - name: Unzip
         run: |
           set -e
 
-          rm -rf temp_movie
-          mkdir temp_movie
+          mkdir -p extracted
 
-          unzip -o "ViralMovie-AI-V2-60MIN.zip" -d temp_movie
+          unzip -o "$ZIP" -d extracted
 
-          cp -R temp_movie/. .
-          rm -rf temp_movie
-          rm -f "ViralMovie-AI-V2-60MIN.zip"
+          echo "FISIERE EXTRASE:"
+          find extracted -type f | sort
 
-      - name: Commit ViralMovie
+      - name: Install files
+        run: |
+          set -e
+
+          cp -R extracted/. .
+
+          rm -rf extracted
+          rm -f "$ZIP"
+
+      - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
