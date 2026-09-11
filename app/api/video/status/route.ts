@@ -22,13 +22,19 @@ export async function POST(request: Request) {
       headers: { Authorization: `Key ${key}` },
       cache: "no-store",
     });
-    const data = await r.json().catch(() => ({}));
+    const contentType = r.headers.get("content-type") || "";
+    const data = contentType.includes("application/json") ? await r.json().catch(() => ({})) : { message: await r.text().catch(() => "fal.ai returned a non-JSON response.") };
 
     if (!r.ok) {
       const message = data?.detail || data?.message || data?.error || `fal.ai status request returned HTTP ${r.status}.`;
       return NextResponse.json({ ok: false, message: typeof message === "string" ? message : JSON.stringify(message), error: data }, { status: r.status });
     }
-    return NextResponse.json({ ok: true, data });
+    const normalized = {
+      ...data,
+      status: data?.status || data?.state || data?.data?.status || data?.data?.state || null,
+      error: data?.error || data?.detail || data?.data?.error || null,
+    };
+    return NextResponse.json({ ok: true, data: normalized });
   } catch {
     return NextResponse.json({ ok: false, error: "Could not check video status." }, { status: 500 });
   }

@@ -44,3 +44,11 @@ The current app generates individual 5-second scenes. It does not yet stitch all
 - Storyboard "Open & Generate" now actually starts video generation; previously it only selected the scene.
 - Character cards are real selectable buttons and the selected character is included in the generation prompt.
 - Video API errors are shown directly in the status line.
+
+
+## V4.2.2 video reliability fix
+- Generate Scene now shows non-JSON/server errors instead of silently failing.
+- Added a 30-second client timeout with a clear Vercel/FAL_KEY message.
+- Status polling checks immediately and normalizes fal.ai status/state responses.
+- Added `/api/video/health` to confirm the deployed server sees `FAL_KEY`.
+- ZIP filename intentionally remains `ViralMovie-AI-V4-FIXED.zip`.

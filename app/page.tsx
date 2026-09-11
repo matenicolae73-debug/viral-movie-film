@@ -93,8 +93,16 @@ export default function Home() {
     setVideoState(x => ({ ...x, [scene.id]: "SUBMITTING" }));
     setStatus(`Scene ${scene.id}: connecting to Vidu Q3 Turbo...`);
     try {
-      const r = await fetch("/api/video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: `${scene.prompt}\n\nCharacter continuity: ${selectedCharacter ? selectedCharacter.prompt : "Use the established movie characters consistently."}`, aspect_ratio: aspect }) });
-      const d = await r.json().catch(() => ({}));
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 30000);
+      let r: Response;
+      try {
+        r = await fetch("/api/video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: `${scene.prompt}\n\nCharacter continuity: ${selectedCharacter ? selectedCharacter.prompt : "Use the established movie characters consistently."}`, aspect_ratio: aspect }), signal: controller.signal });
+      } finally {
+        window.clearTimeout(timeout);
+      }
+      const contentType = r.headers.get("content-type") || "";
+      const d = contentType.includes("application/json") ? await r.json().catch(() => ({})) : { message: await r.text().catch(() => "Non-JSON response from server.") };
       if (!r.ok || !d?.ok) {
         const raw = d?.error?.message || d?.error?.detail || d?.message || (typeof d?.error === "string" ? d.error : "Video generation request was rejected.");
         setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
@@ -113,7 +121,8 @@ export default function Home() {
       await pollScene(scene.id, rid);
     } catch (e: unknown) {
       setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
-      setStatus(`Scene ${scene.id} error: ${e instanceof Error ? e.message : "Video request failed."}`);
+      const message = e instanceof DOMException && e.name === "AbortError" ? "The video server took too long to respond. Check Vercel deployment and FAL_KEY." : e instanceof Error ? e.message : "Video request failed.";
+      setStatus(`Scene ${scene.id} error: ${message}`);
     } finally {
       setGeneratingScene(current => current === scene.id ? null : current);
     }
@@ -121,10 +130,11 @@ export default function Home() {
 
   async function pollScene(sceneId: number, rid: string) {
     for (let i = 0; i < 90; i++) {
-      await new Promise(r => setTimeout(r, 4000));
+      if (i > 0) await new Promise(r => setTimeout(r, 4000));
       try {
-        const r = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "status" }) });
-        const d = await r.json().catch(() => ({}));
+        const r = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "status" }), cache: "no-store" });
+        const contentType = r.headers.get("content-type") || "";
+        const d = contentType.includes("application/json") ? await r.json().catch(() => ({})) : { message: await r.text().catch(() => "Non-JSON response from server.") };
         if (!r.ok || !d?.ok) {
           const raw = d?.error?.message || d?.error?.detail || d?.message || "Status check failed.";
           setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
