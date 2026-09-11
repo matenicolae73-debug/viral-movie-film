@@ -38,3 +38,9 @@ The current app generates individual 5-second scenes. It does not yet stitch all
 - Selected character is highlighted and shown in the AI Video panel.
 - The selected character description is added to the Vidu scene prompt for continuity.
 - Project export includes the selected character.
+
+
+## V4.2.1 button fix
+- Storyboard "Open & Generate" now actually starts video generation; previously it only selected the scene.
+- Character cards are real selectable buttons and the selected character is included in the generation prompt.
+- Video API errors are shown directly in the status line.
