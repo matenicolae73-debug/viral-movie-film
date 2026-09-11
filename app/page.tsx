@@ -150,8 +150,18 @@ export default function Home() {
           else { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus("Generation finished, but Vidu returned no video URL."); }
           return;
         }
-        if (["FAILED", "ERROR", "CANCELLED"].includes(st.toUpperCase())) { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus(`Scene ${sceneId} failed.`); return; }
-      } catch { setStatus("Could not check video status. Try again later."); return; }
+        if (["FAILED", "ERROR", "CANCELLED"].includes(st.toUpperCase())) {
+          const detail = d?.data?.error || d?.data?.detail || d?.data?.message || d?.error || "Vidu reported a generation failure.";
+          setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
+          setStatus(`Scene ${sceneId} failed: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
+          return;
+        }
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Network error while checking video status.";
+        setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
+        setStatus(`Scene ${sceneId} status error: ${message}`);
+        return;
+      }
     }
     setVideoState(x => ({ ...x, [sceneId]: "TIMEOUT" })); setStatus("Generation is taking longer than expected.");
   }

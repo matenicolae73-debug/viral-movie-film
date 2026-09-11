@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 const MODEL = "fal-ai/vidu/q3/text-to-video/turbo";
 
 export async function POST(request: Request) {
@@ -22,7 +24,10 @@ export async function POST(request: Request) {
     });
     const data = await r.json().catch(() => ({}));
 
-    if (!r.ok) return NextResponse.json({ ok: false, error: data }, { status: r.status });
+    if (!r.ok) {
+      const message = data?.detail || data?.message || data?.error || `fal.ai status request returned HTTP ${r.status}.`;
+      return NextResponse.json({ ok: false, message: typeof message === "string" ? message : JSON.stringify(message), error: data }, { status: r.status });
+    }
     return NextResponse.json({ ok: true, data });
   } catch {
     return NextResponse.json({ ok: false, error: "Could not check video status." }, { status: 500 });

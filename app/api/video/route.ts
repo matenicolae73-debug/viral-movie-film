@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 const MODEL = "fal-ai/vidu/q3/text-to-video/turbo";
 
 export async function POST(request: Request) {
