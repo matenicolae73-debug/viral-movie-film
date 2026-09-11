@@ -1,44 +1,78 @@
-name: Unzip ViralMovie AI
+name: ViralMovie AI - Unzip
 
 on:
   push:
     paths:
-      - "ViralMovie-AI-V2-60MIN.zip"
+      - "**.zip"
 
 jobs:
   unzip:
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Download repository
         uses: actions/checkout@v4
 
-      - name: Unzip ViralMovie AI
+      - name: Find ZIP
         run: |
           set -e
 
-          ZIP="ViralMovie-AI-V2-60MIN.zip"
+          ZIP=$(find . -type f -iname "*.zip" \
+            -not -path "./.git/*" | head -n 1)
 
-          if [ ! -f "$ZIP" ]; then
-            echo "ZIP-ul nu exista: $ZIP"
+          if [ -z "$ZIP" ]; then
+            echo "EROARE: Nu am gasit niciun fisier ZIP."
+            find . -maxdepth 3 -type f | sort
             exit 1
           fi
 
-          mkdir -p temp_unzip
-          unzip -o "$ZIP" -d temp_unzip
+          echo "ZIP gasit: $ZIP"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
 
-          cp -R temp_unzip/. .
-          rm -rf temp_unzip
+      - name: Unzip project
+        run: |
+          set -e
+
+          rm -rf extracted
+          mkdir extracted
+
+          unzip -o "$ZIP" -d extracted
+
+          echo "Continut ZIP:"
+          find extracted -maxdepth 3 -type f | sort
+
+      - name: Install project files
+        run: |
+          set -e
+
+          if [ "$(find extracted -mindepth 1 -maxdepth 1 | wc -l)" -eq 1 ] && \
+             [ -d "$(find extracted -mindepth 1 -maxdepth 1 -type d | head -n 1)" ]; then
+
+            FOLDER=$(find extracted -mindepth 1 -maxdepth 1 -type d | head -n 1)
+            cp -R "$FOLDER"/. .
+
+          else
+
+            cp -R extracted/. .
+
+          fi
+
+          rm -rf extracted
           rm -f "$ZIP"
 
-      - name: Save extracted files
+      - name: Commit project
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add -A
-          git diff --cached --quiet || git commit -m "Install ViralMovie AI V2"
 
-          git push
+          if git diff --cached --quiet; then
+            echo "Nicio modificare."
+          else
+            git commit -m "Install ViralMovie AI"
+            git push
+          fi
