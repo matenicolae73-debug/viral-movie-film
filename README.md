@@ -55,3 +55,6 @@ The current app generates individual 5-second scenes. It does not yet stitch all
 
 ## V4.2.2 diagnostics
 The video status endpoint now exposes fal.ai `error_type` and recent runner logs, and the UI displays them when a Vidu job reaches FAILED. This makes credit/auth/model/input failures visible instead of showing only a generic failure.
+
+## V4.2.2 fix
+Fixed the fal.ai queue submission payload. The queue API expects the model inputs under an `input` object; the previous server route sent prompt/settings at the top level. This could cause Generate Scene to fail even with a valid FAL_KEY.

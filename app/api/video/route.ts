@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const r = await fetch(`https://queue.fal.run/${MODEL}`, {
       method: "POST",
       headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, aspect_ratio, duration: 5, resolution: "540p", audio: true }),
+      body: JSON.stringify({ input: { prompt, aspect_ratio, duration: 5, resolution: "540p", audio: true } }),
       cache: "no-store",
     });
     const data = await r.json().catch(() => ({}));
