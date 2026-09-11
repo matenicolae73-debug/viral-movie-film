@@ -1,4 +1,4 @@
-name: Install ViralMovie AI V3
+name: Install ViralMovie AI V4
 
 on:
   workflow_dispatch:
@@ -16,33 +16,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find V3 ZIP
+      - name: Find V4 ZIP
         run: |
           set -e
-
-          ZIP="./ViralMovie-AI-V3-Interactive.zip"
+          ZIP="./ViralMovie-AI-V4-FIXED.zip"
 
           if [ ! -f "$ZIP" ]; then
-            echo "EROARE: ZIP-ul V3 nu exista:"
+            echo "ERROR: V4 ZIP not found:"
             ls -lah
             exit 1
           fi
 
-          echo "ZIP GASIT:"
+          echo "ZIP FOUND: $ZIP"
           ls -lh "$ZIP"
 
-      - name: Unzip V3
+      - name: Unzip V4
         run: |
           set -e
           rm -rf extracted
           mkdir extracted
 
-          unzip -o "./ViralMovie-AI-V3-Interactive.zip" -d extracted
+          unzip -o "./ViralMovie-AI-V4-FIXED.zip" -d extracted
 
-          echo "FISIERE EXTRASE:"
-          find extracted -maxdepth 4 -type f | sort
-
-      - name: Copy project
+      - name: Copy project files
         run: |
           set -e
 
@@ -51,7 +47,7 @@ jobs:
             -exec cp -R {} . \;
 
           rm -rf extracted
-          rm -f "./ViralMovie-AI-V3-Interactive.zip"
+          rm -f "./ViralMovie-AI-V4-FIXED.zip"
 
       - name: Commit project
         run: |
@@ -63,8 +59,8 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "Nu exista modificari."
+            echo "No changes to commit."
           else
-            git commit -m "Install ViralMovie AI V3"
+            git commit -m "Install ViralMovie AI V4"
             git push
           fi
