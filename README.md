@@ -1,6 +1,7 @@
-# ViralMovie AI V2
-Standalone AI movie studio.
-Duration selector: 1 / 3 / 5 / 10 / 30 / 60 minutes.
-Flow: IDEA → AI STORY → CHARACTERS → STORYBOARD → AI VIDEO → AUDIO → MOVIE → EXPORT.
-Vidu Q3 Turbo generation uses 5-second scenes at 540p. FAL_KEY must be stored privately in Vercel.
-The story endpoint is currently a working planning/demo endpoint; full LLM story generation and final movie stitching are the next production stages.
+# ViralMovie AI V3 — Interactive Movie Studio
+
+IDEA → AI STORY → CHARACTERS → STORYBOARD → AI VIDEO → AUDIO → MOVIE → EXPORT
+
+V3 makes all eight pipeline steps clickable, adds storyboard scene cards, duration 1/3/5/10/30/60 minutes, aspect ratio selection and a Vidu Q3 Turbo submission route.
+
+The story endpoint is a structured planning/demo generator, not an LLM. Video generation requires a private FAL_KEY in Vercel and provider credits. Full multi-scene stitching, audio, auth, credits and Stripe are later production modules.
