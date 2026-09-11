@@ -32,7 +32,9 @@ export async function POST(request: Request) {
     const normalized = {
       ...data,
       status: data?.status || data?.state || data?.data?.status || data?.data?.state || null,
-      error: data?.error || data?.detail || data?.data?.error || null,
+      error: data?.error || data?.detail || data?.data?.error || data?.data?.detail || null,
+      error_type: data?.error_type || data?.data?.error_type || null,
+      logs: Array.isArray(data?.logs) ? data.logs : [],
     };
     return NextResponse.json({ ok: true, data: normalized });
   } catch {

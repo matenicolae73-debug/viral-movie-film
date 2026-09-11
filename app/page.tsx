@@ -162,8 +162,10 @@ export default function Home() {
         }
         if (["FAILED", "ERROR", "CANCELLED"].includes(st.toUpperCase())) {
           const detail = d?.data?.error || d?.data?.detail || d?.data?.message || d?.error || "Vidu reported a generation failure.";
+          const errorType = d?.data?.error_type ? ` (${d.data.error_type})` : "";
+          const logs = Array.isArray(d?.data?.logs) ? d.data.logs.map((x: any) => x?.message).filter(Boolean).slice(-2).join(" | ") : "";
           setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
-          setStatus(`Scene ${sceneId} failed: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
+          setStatus(`Scene ${sceneId} FAILED${errorType}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}${logs ? ` — ${logs}` : ""}`);
           return;
         }
       } catch (e: unknown) {

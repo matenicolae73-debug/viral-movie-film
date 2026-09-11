@@ -52,3 +52,6 @@ The current app generates individual 5-second scenes. It does not yet stitch all
 - Status polling checks immediately and normalizes fal.ai status/state responses.
 - Added `/api/video/health` to confirm the deployed server sees `FAL_KEY`.
 - ZIP filename intentionally remains `ViralMovie-AI-V4-FIXED.zip`.
+
+## V4.2.2 diagnostics
+The video status endpoint now exposes fal.ai `error_type` and recent runner logs, and the UI displays them when a Vidu job reaches FAILED. This makes credit/auth/model/input failures visible instead of showing only a generic failure.
