@@ -1,69 +1,50 @@
-name: ViralMovie AI - Unzip
+name: Install ViralMovie AI V2
 
 on:
   push:
     paths:
-      - "**.zip"
+      - "*.zip"
 
 jobs:
-  unzip:
+  install:
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
 
     steps:
-      - name: Download repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find ZIP
+      - name: Find ViralMovie ZIP
         run: |
           set -e
 
-          ZIP=$(find . -type f -iname "*.zip" \
-            -not -path "./.git/*" | head -n 1)
+          ZIP=$(find . -maxdepth 1 -type f -name "ViralMovie-AI-V2-60MIN.zip" | head -n 1)
 
           if [ -z "$ZIP" ]; then
-            echo "EROARE: Nu am gasit niciun fisier ZIP."
-            find . -maxdepth 3 -type f | sort
+            echo "EROARE: ViralMovie-AI-V2-60MIN.zip nu a fost gasit."
+            echo "Fisierele din root sunt:"
+            ls -la
             exit 1
           fi
 
-          echo "ZIP gasit: $ZIP"
-          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "GASIT: $ZIP"
 
-      - name: Unzip project
+      - name: Extract ZIP
         run: |
           set -e
 
-          rm -rf extracted
-          mkdir extracted
+          rm -rf temp_movie
+          mkdir temp_movie
 
-          unzip -o "$ZIP" -d extracted
+          unzip -o "ViralMovie-AI-V2-60MIN.zip" -d temp_movie
 
-          echo "Continut ZIP:"
-          find extracted -maxdepth 3 -type f | sort
+          cp -R temp_movie/. .
+          rm -rf temp_movie
+          rm -f "ViralMovie-AI-V2-60MIN.zip"
 
-      - name: Install project files
-        run: |
-          set -e
-
-          if [ "$(find extracted -mindepth 1 -maxdepth 1 | wc -l)" -eq 1 ] && \
-             [ -d "$(find extracted -mindepth 1 -maxdepth 1 -type d | head -n 1)" ]; then
-
-            FOLDER=$(find extracted -mindepth 1 -maxdepth 1 -type d | head -n 1)
-            cp -R "$FOLDER"/. .
-
-          else
-
-            cp -R extracted/. .
-
-          fi
-
-          rm -rf extracted
-          rm -f "$ZIP"
-
-      - name: Commit project
+      - name: Commit ViralMovie
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -71,8 +52,8 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "Nicio modificare."
+            echo "Nu exista modificari."
           else
-            git commit -m "Install ViralMovie AI"
+            git commit -m "Install ViralMovie AI V2"
             git push
           fi
