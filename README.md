@@ -23,3 +23,11 @@ Social platforms may require the user to download the MP4 and upload it manually
 
 ## Important
 The current app generates individual 5-second scenes. It does not yet stitch all scenes into one final long MP4 movie. That is the next engineering step.
+
+
+## V4.1 video generation fix
+- Added visible Vidu/fal.ai submission, queue, status and result errors in the UI.
+- Generate Scene now shows SUBMITTING / IN_QUEUE / IN_PROGRESS / READY or the exact server error.
+- The Generate Scene button is disabled while the request is running to prevent duplicate paid requests.
+- Vidu Q3 Turbo remains server-side through FAL_KEY.
+- Test with 5-second 540p scenes first; fal.ai charges for inference.

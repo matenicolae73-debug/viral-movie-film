@@ -27,6 +27,7 @@ export default function Home() {
   const [audio, setAudio] = useState({ dialogue: true, narration: true, music: true, sfx: true });
   const [videoUrls, setVideoUrls] = useState<Record<number, string>>({});
   const [videoState, setVideoState] = useState<Record<number, string>>({});
+  const [generatingScene, setGeneratingScene] = useState<number | null>(null);
 
   const go = (index: number) => {
     setActive(index);
@@ -74,16 +75,35 @@ export default function Home() {
   }
 
   async function generateScene(scene: Scene) {
-    setSelectedScene(scene); setActive(4); setStatus(`Submitting Scene ${scene.id} to the video engine...`);
+    if (generatingScene === scene.id) return;
+    setSelectedScene(scene); setActive(4); setGeneratingScene(scene.id);
+    setVideoState(x => ({ ...x, [scene.id]: "SUBMITTING" }));
+    setStatus(`Scene ${scene.id}: connecting to Vidu Q3 Turbo...`);
     try {
       const r = await fetch("/api/video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: scene.prompt, aspect_ratio: aspect }) });
-      const d = await r.json();
-      if (!d?.ok) { setStatus(d?.message || d?.error?.message || "Video generation needs FAL_KEY."); return; }
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d?.ok) {
+        const raw = d?.error?.message || d?.error?.detail || d?.message || (typeof d?.error === "string" ? d.error : "Video generation request was rejected.");
+        setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
+        setStatus(`Scene ${scene.id} error: ${raw}`);
+        return;
+      }
       const rid = d.requestId || d.data?.request_id || d.data?.requestId;
-      if (!rid) { setStatus("Scene submitted, but no request ID was returned."); return; }
-      setGenerated(x => ({ ...x, [scene.id]: true })); setVideoState(x => ({ ...x, [scene.id]: "IN_QUEUE" }));
-      setStatus(`Scene ${scene.id} is generating. Please wait...`); pollScene(scene.id, rid);
-    } catch { setStatus("Video request failed."); }
+      if (!rid) {
+        setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
+        setStatus("Vidu accepted the request but returned no request ID. Try again.");
+        return;
+      }
+      setGenerated(x => ({ ...x, [scene.id]: true }));
+      setVideoState(x => ({ ...x, [scene.id]: "IN_QUEUE" }));
+      setStatus(`Scene ${scene.id}: IN_QUEUE — Vidu is generating your 5-second video...`);
+      await pollScene(scene.id, rid);
+    } catch (e: unknown) {
+      setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
+      setStatus(`Scene ${scene.id} error: ${e instanceof Error ? e.message : "Video request failed."}`);
+    } finally {
+      setGeneratingScene(current => current === scene.id ? null : current);
+    }
   }
 
   async function pollScene(sceneId: number, rid: string) {
@@ -91,13 +111,30 @@ export default function Home() {
       await new Promise(r => setTimeout(r, 4000));
       try {
         const r = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "status" }) });
-        const d = await r.json(); const st = String(d?.data?.status || d?.data?.state || d?.status || "");
-        if (st) setVideoState(x => ({ ...x, [sceneId]: st }));
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d?.ok) {
+          const raw = d?.error?.message || d?.error?.detail || d?.message || "Status check failed.";
+          setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
+          setStatus(`Scene ${sceneId} status error: ${raw}`);
+          return;
+        }
+        const st = String(d?.data?.status || d?.data?.state || d?.status || "");
+        if (st) {
+          setVideoState(x => ({ ...x, [sceneId]: st }));
+          setStatus(`Scene ${sceneId}: ${st}`);
+        }
         if (["COMPLETED", "SUCCESS", "SUCCEEDED"].includes(st.toUpperCase())) {
           const rr = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "result" }) });
-          const rd = await rr.json(); const url = rd?.data?.video?.url || rd?.data?.data?.video?.url || rd?.video?.url;
-          if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); setStatus(`Scene ${sceneId} is ready — Preview, Download and Share.`); }
-          else setStatus("Generation finished, but no video URL was returned.");
+          const rd = await rr.json().catch(() => ({}));
+          if (!rr.ok || !rd?.ok) {
+            const raw = rd?.error?.message || rd?.error?.detail || rd?.message || "Could not retrieve the finished video.";
+            setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
+            setStatus(`Scene ${sceneId} result error: ${raw}`);
+            return;
+          }
+          const url = rd?.data?.video?.url || rd?.data?.data?.video?.url || rd?.video?.url;
+          if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); setStatus(`Scene ${sceneId} is READY — Preview, Download and Share.`); }
+          else { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus("Generation finished, but Vidu returned no video URL."); }
           return;
         }
         if (["FAILED", "ERROR", "CANCELLED"].includes(st.toUpperCase())) { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus(`Scene ${sceneId} failed.`); return; }
@@ -170,7 +207,7 @@ export default function Home() {
               <div className="scene-grid">{story.scenes.map(scene => <div className={`scene-card ${selectedScene?.id === scene.id ? "scene-selected" : ""}`} key={scene.id}><div className="scene-thumb">🎞️</div><div><b>Scene {scene.id}</b><p>{scene.prompt}</p><button type="button" onClick={() => selectScene(scene)}>{generated[scene.id] ? "✓ Generated / Open" : "Open & Generate"}</button></div></div>)}</div>
             </div>}</section>
 
-            <section className="card" id="stage-4"><div className="section-head"><h2>🎥 AI Video</h2><span>{selectedScene && videoState[selectedScene.id] ? videoState[selectedScene.id] : "READY"}</span></div>{selectedScene ? <><div className="info-box"><b>Scene {selectedScene.id}</b><br/><span>{selectedScene.prompt}</span></div><button className="generate" onClick={() => generateScene(selectedScene)}>{generated[selectedScene.id] ? "↻ Generate Again" : "✦ Generate Scene"}</button>{readyUrl && <div className="video-box"><video controls playsInline src={readyUrl}/><div className="video-actions"><button className="download" onClick={() => downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" onClick={() => previewVideo(selectedScene.id)}>◉ Preview</button></div><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">For Instagram, TikTok and YouTube, the platform may ask you to upload the downloaded MP4.</p></div>}</> : <div className="info-box">Choose a scene from Storyboard first.</div>}</section>
+            <section className="card" id="stage-4"><div className="section-head"><h2>🎥 AI Video</h2><span>{selectedScene && videoState[selectedScene.id] ? videoState[selectedScene.id] : "READY"}</span></div>{selectedScene ? <><div className="info-box"><b>Scene {selectedScene.id}</b><br/><span>{selectedScene.prompt}</span></div><button type="button" className="generate" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? `⏳ Generating Scene ${selectedScene.id}...` : generated[selectedScene.id] ? "↻ Generate Again" : "✦ Generate Scene"}</button>{readyUrl && <div className="video-box"><video controls playsInline src={readyUrl}/><div className="video-actions"><button className="download" onClick={() => downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" onClick={() => previewVideo(selectedScene.id)}>◉ Preview</button></div><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">For Instagram, TikTok and YouTube, the platform may ask you to upload the downloaded MP4.</p></div>}</> : <div className="info-box">Choose a scene from Storyboard first.</div>}</section>
 
             <section className="card" id="stage-5"><div className="section-head"><h2>🔊 Audio</h2><span>STUDIO</span></div><div className="audio-row">{(["dialogue","narration","sfx","music"] as const).map(k => <button key={k} onClick={() => setAudio(a => ({ ...a, [k]: !a[k] }))}>{audio[k] ? "✓" : "○"} {k.toUpperCase()}</button>)}</div><p className="muted">Audio controls are ready. Vidu can return sound with generated video.</p></section>
 
@@ -179,7 +216,7 @@ export default function Home() {
             <section className="card" id="stage-7"><div className="section-head"><h2>⇩ Export</h2><span>SHARE</span></div><button className="generate" onClick={exportProject}>Export Project</button></section>
           </div>
 
-          <aside className="right-column" id="preview"><section className="card preview-card"><div className="section-head"><h2>▶ Movie Preview</h2><span>LIVE</span></div>{readyUrl ? <video id="movie-preview-video" controls playsInline preload="metadata" src={readyUrl}/> : <div className="preview-empty"><img src="/hero-dashboard.png" alt="Movie preview"/><span className="play">▶</span><strong>{selectedScene ? `Scene ${selectedScene.id} — press Generate Scene below` : "Select a scene to create your preview"}</strong></div>}<div className="preview-actions">{selectedScene && !readyUrl && <button className="preview" onClick={() => generateScene(selectedScene)}>✦ Generate Scene</button>}<button className="download" disabled={!readyUrl} onClick={() => selectedScene && downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" disabled={!readyUrl} onClick={() => selectedScene && previewVideo(selectedScene.id)}>◉ Preview</button></div>{readyUrl && selectedScene && <><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">Social buttons open the platform upload/share page. Download the MP4 first when a platform requires a file upload.</p></>}</section>
+          <aside className="right-column" id="preview"><section className="card preview-card"><div className="section-head"><h2>▶ Movie Preview</h2><span>LIVE</span></div>{readyUrl ? <video id="movie-preview-video" controls playsInline preload="metadata" src={readyUrl}/> : <div className="preview-empty"><img src="/hero-dashboard.png" alt="Movie preview"/><span className="play">▶</span><strong>{selectedScene ? `Scene ${selectedScene.id} — press Generate Scene below` : "Select a scene to create your preview"}</strong></div>}<div className="preview-actions">{selectedScene && !readyUrl && <button type="button" className="preview" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? "⏳ Generating..." : "✦ Generate Scene"}</button>}<button className="download" disabled={!readyUrl} onClick={() => selectedScene && downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" disabled={!readyUrl} onClick={() => selectedScene && previewVideo(selectedScene.id)}>◉ Preview</button></div>{readyUrl && selectedScene && <><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">Social buttons open the platform upload/share page. Download the MP4 first when a platform requires a file upload.</p></>}</section>
             <section className="card pipeline"><div className="section-head"><h2>Movie Pipeline</h2><span>V4</span></div><div className="steps">{steps.map(([name, desc], i) => <button type="button" key={name} className={`step ${active === i ? "active" : ""} ${i < active ? "done" : ""}`} onClick={() => i === 2 ? openCharacters() : i === 3 ? openStoryboard() : i === 4 ? openVideo() : go(i)}><b>{i + 1}. {name}</b><span>{i < active ? "✓" : i === active ? "ACTIVE" : "OPEN"}</span><small>{desc}</small></button>)}</div></section>
             <section className="card my-movies"><div className="section-head"><h2>🎞️ My Movies</h2><span>View all →</span></div><div className="movie-item"><div className="mini-art">🌌</div><div><b>{story?.title || "Your next movie"}</b><small>{story ? `${minutes}:00 • Project ready` : "Start a new project"}</small></div><button onClick={() => go(0)}>Play</button></div></section>
           </aside>
