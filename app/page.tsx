@@ -91,11 +91,11 @@ export default function Home() {
       await new Promise(r => setTimeout(r, 4000));
       try {
         const r = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "status" }) });
-        const d = await r.json(); const st = String(d?.data?.status || "");
+        const d = await r.json(); const st = String(d?.data?.status || d?.data?.state || d?.status || "");
         if (st) setVideoState(x => ({ ...x, [sceneId]: st }));
         if (["COMPLETED", "SUCCESS", "SUCCEEDED"].includes(st.toUpperCase())) {
           const rr = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "result" }) });
-          const rd = await rr.json(); const url = rd?.data?.video?.url || rd?.data?.data?.video?.url;
+          const rd = await rr.json(); const url = rd?.data?.video?.url || rd?.data?.data?.video?.url || rd?.video?.url;
           if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); setStatus(`Scene ${sceneId} is ready — Preview, Download and Share.`); }
           else setStatus("Generation finished, but no video URL was returned.");
           return;

@@ -1,18 +1,25 @@
-# ViralMovie AI V4 — Professional Movie Studio
+# ViralMovie AI V4.0.1
 
-Includes:
-- Professional dark cinematic dashboard UI inspired by the approved ViralMovie AI design.
-- Hero cinematic artwork and responsive mobile layout.
-- All 8 Movie Pipeline steps are clickable.
-- AI Story + storyboard + character test module.
-- Vidu Q3 Turbo video generation through server-side `FAL_KEY`.
-- 5-second 540p scene generation for economical testing.
-- Live generation status polling.
-- Video Preview and Download Video.
-- Facebook, Instagram, TikTok, YouTube and native Share buttons.
-- Audio controls and Project Export.
+Professional dark cinematic AI movie studio for Vercel.
 
-Important:
-- Keep `FAL_KEY` only in Vercel Environment Variables; never put it in client code.
-- The current version downloads generated scenes individually. Automatic multi-scene movie stitching is a later production step.
-- The ZIP filename is intentionally `ViralMovie-AI-V4-FIXED.zip` so the existing GitHub unpack workflow does not need to be changed.
+## Working flow
+IDEA -> AI STORY -> CHARACTERS -> STORYBOARD -> AI VIDEO -> AUDIO -> MOVIE -> EXPORT
+
+## Video engine
+Vidu Q3 Turbo through fal.ai. The `FAL_KEY` stays server-side in Vercel Environment Variables.
+
+For economical testing the app submits 5-second, 540p scenes. fal currently documents Q3 Turbo at $0.035/video second at 540p, so a 5-second test costs about $0.175 before any account-specific pricing/credits. See the official API docs: https://fal.ai/models/fal-ai/vidu/q3/text-to-video/turbo/api
+
+## Fixed in V4.0.1
+- Added the missing video status API route.
+- Added the missing video download API route.
+- Movie Preview now receives the completed Vidu MP4 URL.
+- Preview uses a real HTML video player with controls.
+- Download streams the MP4 through the server.
+- Facebook / Instagram / TikTok / YouTube / Share buttons remain available after generation.
+- Character and Storyboard controls remain interactive.
+
+Social platforms may require the user to download the MP4 and upload it manually; browser buttons cannot silently upload to a user's social account without the platform's authentication/API flow.
+
+## Important
+The current app generates individual 5-second scenes. It does not yet stitch all scenes into one final long MP4 movie. That is the next engineering step.
