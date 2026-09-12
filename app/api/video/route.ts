@@ -19,13 +19,15 @@ export async function POST(request: Request) {
     const r = await fetch(`https://queue.fal.run/${MODEL}`, {
       method: "POST",
       headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ input: { prompt, aspect_ratio, duration: 5, resolution: "540p", audio: true } }),
+      body: JSON.stringify({ prompt, aspect_ratio, duration: 5, resolution: "540p", audio: true }),
       cache: "no-store",
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
       const message = data?.detail || data?.message || data?.error || `fal.ai returned HTTP ${r.status}.`;
-      return NextResponse.json({ ok: false, message: typeof message === "string" ? message : JSON.stringify(message), error: data }, { status: r.status });
+      const requestId = r.headers.get("x-fal-request-id") || r.headers.get("x-request-id") || null;
+      const errorType = r.headers.get("x-fal-error-type") || null;
+      return NextResponse.json({ ok: false, message: typeof message === "string" ? message : JSON.stringify(message), error: data, falStatus: r.status, falRequestId: requestId, falErrorType: errorType }, { status: r.status });
     }
 
     const requestId = data?.request_id || data?.requestId;
