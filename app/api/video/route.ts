@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MODEL = "fal-ai/vidu/q3/text-to-video/turbo";
+const MODEL = process.env.FAL_VIDEO_MODEL?.trim() || "fal-ai/vidu/q3/text-to-video/turbo";
 
 function safeText(value: unknown) {
   if (typeof value === "string") return value;
