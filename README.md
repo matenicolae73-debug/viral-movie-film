@@ -65,3 +65,12 @@ Fixed the fal.ai queue submission payload. The queue API expects the model input
 - status polling uses the documented `logs=1` queue parameter.
 - the UI visibly reports FAL configuration and the last generation error inside AI Video and Movie.
 - FAL_KEY remains server-side.
+
+## ViralMovie AI safety and Movies catalog
+- The public generator is 18+ only and applies server-side prompt safety checks.
+- Blocked categories include pornography/sexual content, sexual content involving minors, non-consensual intimate imagery, realistic impersonation/deepfakes of real people, terrorism/extremism, scams/criminal activity, self-harm promotion, and extreme graphic violence.
+- These filters are a safety layer, not a guarantee; review and moderation remain necessary.
+- Only the owner can publish a finished generated video to the public Movies catalog.
+- Set `OWNER_PUBLISH_TOKEN` in Vercel. Keep it server-side.
+- Set `KV_REST_API_URL` and `KV_REST_API_TOKEN` (or the equivalent `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) for persistent Movies storage.
+- fal's API key remains server-side in `FAL_KEY`.

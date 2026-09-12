@@ -32,6 +32,10 @@ export default function Home() {
   const [generatingScene, setGeneratingScene] = useState<number | null>(null);
   const [videoError, setVideoError] = useState<Record<number, string>>({});
   const [falConfigured, setFalConfigured] = useState<boolean | null>(null);
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [ownerToken, setOwnerToken] = useState("");
+  const [ownerLoggedIn, setOwnerLoggedIn] = useState(false);
+  const [publishMessage, setPublishMessage] = useState("");
 
   useEffect(() => {
     fetch("/api/video/health", { cache: "no-store" })
@@ -100,6 +104,7 @@ export default function Home() {
 
   async function generateScene(scene: Scene) {
     if (generatingScene === scene.id) return;
+    if (!adultConfirmed) { setStatus("Confirm that you are 18+ before generating a video."); return; }
     setSelectedScene(scene); setActive(4); setGeneratingScene(scene.id);
     setVideoError(x => ({ ...x, [scene.id]: "" }));
     setVideoState(x => ({ ...x, [scene.id]: "SUBMITTING" }));
@@ -109,7 +114,7 @@ export default function Home() {
       const timeout = window.setTimeout(() => controller.abort(), 30000);
       let r: Response;
       try {
-        r = await fetch("/api/video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: `${scene.prompt}\n\nCharacter continuity: ${selectedCharacter ? selectedCharacter.prompt : "Use the established movie characters consistently."}`, aspect_ratio: aspect }), signal: controller.signal });
+        r = await fetch("/api/video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: `${scene.prompt}\n\nCharacter continuity: ${selectedCharacter ? selectedCharacter.prompt : "Use the established movie characters consistently."}`, aspect_ratio: aspect, adultConfirmed }), signal: controller.signal });
       } finally {
         window.clearTimeout(timeout);
       }
@@ -211,6 +216,24 @@ export default function Home() {
     window.open(links[platform], "_blank", "noopener,noreferrer");
   }
 
+
+  async function ownerLogin() {
+    setPublishMessage("Checking owner access...");
+    const r = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: ownerToken }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { setOwnerLoggedIn(false); setPublishMessage(d.error || "Owner login failed."); return; }
+    setOwnerLoggedIn(true); setPublishMessage("Owner access enabled on this browser.");
+  }
+
+  async function publishMovie() {
+    if (!selectedScene || !readyUrl) { setPublishMessage("Generate a finished scene first."); return; }
+    const title = story?.title || `ViralMovie Scene ${selectedScene.id}`;
+    const description = story?.logline || selectedScene.prompt;
+    const r = await fetch("/api/admin/publish", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, description, prompt: selectedScene.prompt, videoUrl: readyUrl }) });
+    const d = await r.json().catch(() => ({}));
+    setPublishMessage(r.ok ? `Published: ${d.movie?.title || title}` : (d.error || "Publish failed."));
+  }
+
   function downloadVideo(sceneId: number) {
     const url = videoUrls[sceneId];
     if (!url) { setStatus("Video is not ready yet."); return; }
@@ -238,7 +261,7 @@ export default function Home() {
   const readyUrl = selectedScene ? videoUrls[selectedScene.id] : "";
 
   return <main className="app-shell">
-    <nav className="topbar"><div className="brand"><div className="brand-icon">🎬</div><div><strong>ViralMovie <span>AI</span></strong><small>Turn Your Ideas Into Viral Movies</small></div></div><div className="top-actions"><button>👑 Go Premium</button><span>🪙 Credits: 250</span><div className="profile">👤 Nicu Mate⌄</div></div></nav>
+    <nav className="topbar"><div className="brand"><div className="brand-icon">🎬</div><div><strong>ViralMovie <span>AI</span></strong><small>Turn Your Ideas Into Viral Movies</small></div></div><div className="top-actions"><a href="/movies" className="top-link">🎞️ Movies</a><a href="/credits" className="top-link">🪙 Credits</a><button>👑 Go Premium</button><div className="profile">👤 Account⌄</div></div></nav>
     <div className="layout">
       <aside className="sidebar"><div className="side-links">
         {["⌂ Dashboard", "🎬 Create Movie", "▣ Create Scene", "▶ My Videos", "☆ Viral Templates", "↗ Social Media", "◉ Credits & Plans", "⚙ Settings"].map((x, i) => <button key={x} className={i === 1 ? "side-link active" : "side-link"} onClick={() => i === 1 ? go(0) : setStatus(`${x.replace(/^\S+\s/, "")} is coming next.`)}>{x}</button>)}
@@ -263,7 +286,7 @@ export default function Home() {
               <div className="scene-grid">{story.scenes.map(scene => <div className={`scene-card ${selectedScene?.id === scene.id ? "scene-selected" : ""}`} key={scene.id}><div className="scene-thumb">🎞️</div><div><b>Scene {scene.id}</b><p>{scene.prompt}</p><button type="button" onClick={() => { selectScene(scene); if (!generated[scene.id]) void generateScene(scene); }}>{generated[scene.id] ? "✓ Generated / Open" : "✦ Open & Generate"}</button></div></div>)}</div>
             </> }</section>
 
-            <section className="card" id="stage-4"><div className="section-head"><h2>🎥 AI Video</h2><span>{selectedScene && videoState[selectedScene.id] ? videoState[selectedScene.id] : falConfigured === false ? "FAL OFFLINE" : "READY"}</span></div>{selectedScene ? <><div className="info-box"><b>Scene {selectedScene.id}</b><br/><span>{selectedScene.prompt}</span>{selectedCharacter && <><br/><small className="character-context">Character: {selectedCharacter.name} — {selectedCharacter.role}</small></>}</div>{falConfigured === false && <div className="error-box"><b>Vidu connection is not ready.</b><br/>The deployed server cannot see FAL_KEY. Add it to Vercel Production and redeploy.</div>}{videoError[selectedScene.id] && <div className="error-box"><b>Generation error</b><br/>{videoError[selectedScene.id]}</div>}<button type="button" className="generate" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? `⏳ Generating Scene ${selectedScene.id}...` : generated[selectedScene.id] ? "↻ Generate Again" : "✦ Generate Scene"}</button>{readyUrl && <div className="video-box"><video controls playsInline src={readyUrl}/><div className="video-actions"><button className="download" onClick={() => downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" onClick={() => previewVideo(selectedScene.id)}>◉ Preview</button></div><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">For Instagram, TikTok and YouTube, the platform may ask you to upload the downloaded MP4.</p></div>}</> : <div className="info-box">Choose a scene from Storyboard first.</div>}</section>
+            <section className="card" id="stage-4"><div className="section-head"><h2>🎥 AI Video</h2><span>{selectedScene && videoState[selectedScene.id] ? videoState[selectedScene.id] : falConfigured === false ? "FAL OFFLINE" : "READY"}</span></div>{selectedScene ? <><div className="info-box"><b>Scene {selectedScene.id}</b><br/><span>{selectedScene.prompt}</span>{selectedCharacter && <><br/><small className="character-context">Character: {selectedCharacter.name} — {selectedCharacter.role}</small></>}</div><label className="safety-check"><input type="checkbox" checked={adultConfirmed} onChange={e => setAdultConfirmed(e.target.checked)} /> I confirm I am 18+ and agree not to create pornography, sexual content involving minors, non-consensual intimate imagery, realistic impersonations/deepfakes of real people, terrorism, scams, extreme gore, or other prohibited content.</label>{falConfigured === false && <div className="error-box"><b>Vidu connection is not ready.</b><br/>The deployed server cannot see FAL_KEY. Add it to Vercel Production and redeploy.</div>}{videoError[selectedScene.id] && <div className="error-box"><b>Generation error</b><br/>{videoError[selectedScene.id]}</div>}<button type="button" className="generate" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? `⏳ Generating Scene ${selectedScene.id}...` : generated[selectedScene.id] ? "↻ Generate Again" : "✦ Generate Scene"}</button>{readyUrl && <div className="video-box"><video controls playsInline src={readyUrl}/><div className="video-actions"><button className="download" onClick={() => downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" onClick={() => previewVideo(selectedScene.id)}>◉ Preview</button></div><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">For Instagram, TikTok and YouTube, the platform may ask you to upload the downloaded MP4.</p><div className="publish-box"><h3>👑 Owner: Publish to Movies</h3><p>Only the site owner can publish a finished, reviewed movie to the public Movies catalog.</p>{!ownerLoggedIn ? <div className="owner-login"><input type="password" value={ownerToken} onChange={e => setOwnerToken(e.target.value)} placeholder="Owner publish token" /><button onClick={ownerLogin}>Unlock Owner</button></div> : <button className="publish" onClick={publishMovie}>🚀 Publish to Movies</button>}<small>{publishMessage}</small></div></div>}</> : <div className="info-box">Choose a scene from Storyboard first.</div>}</section>
 
             <section className="card" id="stage-5"><div className="section-head"><h2>🔊 Audio</h2><span>STUDIO</span></div><div className="audio-row">{(["dialogue","narration","sfx","music"] as const).map(k => <button key={k} onClick={() => setAudio(a => ({ ...a, [k]: !a[k] }))}>{audio[k] ? "✓" : "○"} {k.toUpperCase()}</button>)}</div><p className="muted">Audio controls are ready. Vidu can return sound with generated video.</p></section>
 
@@ -279,6 +302,6 @@ export default function Home() {
         </div>
       </section>
     </div>
-    <footer>ViralMovie AI • AI Makes Films Online • FAL_KEY stays server-side. <span className="footer-links"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/acceptable-use">Acceptable Use</a> · <a href="/security">Security</a></span></footer>
+    <footer>ViralMovie AI • AI Makes Films Online • 18+ • Safety-first • FAL_KEY stays server-side. <span className="footer-links"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/acceptable-use">Acceptable Use</a> · <a href="/security">Security</a></span></footer>
   </main>;
 }
