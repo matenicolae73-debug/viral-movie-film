@@ -58,3 +58,10 @@ The video status endpoint now exposes fal.ai `error_type` and recent runner logs
 
 ## V4.2.2 fix
 Fixed the fal.ai queue submission payload. The queue API expects the model inputs under an `input` object; the previous server route sent prompt/settings at the top level. This could cause Generate Scene to fail even with a valid FAL_KEY.
+
+## V4 video generation fix
+- FAL_KEY is trimmed server-side to avoid accidental whitespace in Vercel environment values.
+- fal queue submission and status responses now preserve detailed HTTP/error information.
+- status polling uses the documented `logs=1` queue parameter.
+- the UI visibly reports FAL configuration and the last generation error inside AI Video and Movie.
+- FAL_KEY remains server-side.

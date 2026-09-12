@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const durations = [1, 3, 5, 10, 30, 60];
 const steps = [
@@ -30,6 +30,17 @@ export default function Home() {
   const [videoUrls, setVideoUrls] = useState<Record<number, string>>({});
   const [videoState, setVideoState] = useState<Record<number, string>>({});
   const [generatingScene, setGeneratingScene] = useState<number | null>(null);
+  const [videoError, setVideoError] = useState<Record<number, string>>({});
+  const [falConfigured, setFalConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/video/health", { cache: "no-store" })
+      .then(async r => {
+        const d = await r.json().catch(() => ({}));
+        setFalConfigured(Boolean(r.ok && d?.falConfigured));
+      })
+      .catch(() => setFalConfigured(false));
+  }, []);
 
   const go = (index: number) => {
     setActive(index);
@@ -90,6 +101,7 @@ export default function Home() {
   async function generateScene(scene: Scene) {
     if (generatingScene === scene.id) return;
     setSelectedScene(scene); setActive(4); setGeneratingScene(scene.id);
+    setVideoError(x => ({ ...x, [scene.id]: "" }));
     setVideoState(x => ({ ...x, [scene.id]: "SUBMITTING" }));
     setStatus(`Scene ${scene.id}: connecting to Vidu Q3 Turbo...`);
     try {
@@ -106,12 +118,14 @@ export default function Home() {
       if (!r.ok || !d?.ok) {
         const raw = d?.error?.message || d?.error?.detail || d?.message || (typeof d?.error === "string" ? d.error : "Video generation request was rejected.");
         setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
+        setVideoError(x => ({ ...x, [scene.id]: raw }));
         setStatus(`Scene ${scene.id} error: ${raw}`);
         return;
       }
       const rid = d.requestId || d.data?.request_id || d.data?.requestId;
       if (!rid) {
         setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
+        setVideoError(x => ({ ...x, [scene.id]: "Vidu accepted the request but returned no request ID. Try again." }));
         setStatus("Vidu accepted the request but returned no request ID. Try again.");
         return;
       }
@@ -122,6 +136,7 @@ export default function Home() {
     } catch (e: unknown) {
       setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
       const message = e instanceof DOMException && e.name === "AbortError" ? "The video server took too long to respond. Check Vercel deployment and FAL_KEY." : e instanceof Error ? e.message : "Video request failed.";
+      setVideoError(x => ({ ...x, [scene.id]: message }));
       setStatus(`Scene ${scene.id} error: ${message}`);
     } finally {
       setGeneratingScene(current => current === scene.id ? null : current);
@@ -138,6 +153,7 @@ export default function Home() {
         if (!r.ok || !d?.ok) {
           const raw = d?.error?.message || d?.error?.detail || d?.message || "Status check failed.";
           setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
+          setVideoError(x => ({ ...x, [sceneId]: raw }));
           setStatus(`Scene ${sceneId} status error: ${raw}`);
           return;
         }
@@ -152,6 +168,7 @@ export default function Home() {
           if (!rr.ok || !rd?.ok) {
             const raw = rd?.error?.message || rd?.error?.detail || rd?.message || "Could not retrieve the finished video.";
             setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
+            setVideoError(x => ({ ...x, [sceneId]: raw }));
             setStatus(`Scene ${sceneId} result error: ${raw}`);
             return;
           }
@@ -165,12 +182,14 @@ export default function Home() {
           const errorType = d?.data?.error_type ? ` (${d.data.error_type})` : "";
           const logs = Array.isArray(d?.data?.logs) ? d.data.logs.map((x: any) => x?.message).filter(Boolean).slice(-2).join(" | ") : "";
           setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
+          setVideoError(x => ({ ...x, [sceneId]: `FAILED${errorType}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}${logs ? ` — ${logs}` : ""}` }));
           setStatus(`Scene ${sceneId} FAILED${errorType}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}${logs ? ` — ${logs}` : ""}`);
           return;
         }
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Network error while checking video status.";
         setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
+        setVideoError(x => ({ ...x, [sceneId]: message }));
         setStatus(`Scene ${sceneId} status error: ${message}`);
         return;
       }
@@ -244,11 +263,11 @@ export default function Home() {
               <div className="scene-grid">{story.scenes.map(scene => <div className={`scene-card ${selectedScene?.id === scene.id ? "scene-selected" : ""}`} key={scene.id}><div className="scene-thumb">🎞️</div><div><b>Scene {scene.id}</b><p>{scene.prompt}</p><button type="button" onClick={() => { selectScene(scene); if (!generated[scene.id]) void generateScene(scene); }}>{generated[scene.id] ? "✓ Generated / Open" : "✦ Open & Generate"}</button></div></div>)}</div>
             </> }</section>
 
-            <section className="card" id="stage-4"><div className="section-head"><h2>🎥 AI Video</h2><span>{selectedScene && videoState[selectedScene.id] ? videoState[selectedScene.id] : "READY"}</span></div>{selectedScene ? <><div className="info-box"><b>Scene {selectedScene.id}</b><br/><span>{selectedScene.prompt}</span>{selectedCharacter && <><br/><small className="character-context">Character: {selectedCharacter.name} — {selectedCharacter.role}</small></>}</div><button type="button" className="generate" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? `⏳ Generating Scene ${selectedScene.id}...` : generated[selectedScene.id] ? "↻ Generate Again" : "✦ Generate Scene"}</button>{readyUrl && <div className="video-box"><video controls playsInline src={readyUrl}/><div className="video-actions"><button className="download" onClick={() => downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" onClick={() => previewVideo(selectedScene.id)}>◉ Preview</button></div><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">For Instagram, TikTok and YouTube, the platform may ask you to upload the downloaded MP4.</p></div>}</> : <div className="info-box">Choose a scene from Storyboard first.</div>}</section>
+            <section className="card" id="stage-4"><div className="section-head"><h2>🎥 AI Video</h2><span>{selectedScene && videoState[selectedScene.id] ? videoState[selectedScene.id] : falConfigured === false ? "FAL OFFLINE" : "READY"}</span></div>{selectedScene ? <><div className="info-box"><b>Scene {selectedScene.id}</b><br/><span>{selectedScene.prompt}</span>{selectedCharacter && <><br/><small className="character-context">Character: {selectedCharacter.name} — {selectedCharacter.role}</small></>}</div>{falConfigured === false && <div className="error-box"><b>Vidu connection is not ready.</b><br/>The deployed server cannot see FAL_KEY. Add it to Vercel Production and redeploy.</div>}{videoError[selectedScene.id] && <div className="error-box"><b>Generation error</b><br/>{videoError[selectedScene.id]}</div>}<button type="button" className="generate" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? `⏳ Generating Scene ${selectedScene.id}...` : generated[selectedScene.id] ? "↻ Generate Again" : "✦ Generate Scene"}</button>{readyUrl && <div className="video-box"><video controls playsInline src={readyUrl}/><div className="video-actions"><button className="download" onClick={() => downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" onClick={() => previewVideo(selectedScene.id)}>◉ Preview</button></div><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">For Instagram, TikTok and YouTube, the platform may ask you to upload the downloaded MP4.</p></div>}</> : <div className="info-box">Choose a scene from Storyboard first.</div>}</section>
 
             <section className="card" id="stage-5"><div className="section-head"><h2>🔊 Audio</h2><span>STUDIO</span></div><div className="audio-row">{(["dialogue","narration","sfx","music"] as const).map(k => <button key={k} onClick={() => setAudio(a => ({ ...a, [k]: !a[k] }))}>{audio[k] ? "✓" : "○"} {k.toUpperCase()}</button>)}</div><p className="muted">Audio controls are ready. Vidu can return sound with generated video.</p></section>
 
-            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ Movie</h2><span>WORKSPACE</span></div><div className="movie-tile"><strong>{minutes} min</strong><span>{story?.sceneCount || 0} planned scenes • {Object.keys(generated).length} submitted</span></div><p className="muted">The timeline is ready for multi-scene assembly. Download currently saves each generated scene.</p></section>
+            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ Movie</h2><span>WORKSPACE</span></div><div className="movie-tile"><strong>{minutes} min</strong><span>{story?.sceneCount || 0} planned scenes • {Object.keys(generated).length} submitted</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">The timeline is ready for multi-scene assembly. Download currently saves each generated scene.</p></section>
 
             <section className="card" id="stage-7"><div className="section-head"><h2>⇩ Export</h2><span>SHARE</span></div><button className="generate" onClick={exportProject}>Export Project</button></section>
           </div>
