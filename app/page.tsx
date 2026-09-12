@@ -279,6 +279,6 @@ export default function Home() {
         </div>
       </section>
     </div>
-    <footer>ViralMovie AI • AI Makes Films Online • FAL_KEY stays server-side.</footer>
+    <footer>ViralMovie AI • AI Makes Films Online • FAL_KEY stays server-side. <span className="footer-links"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/acceptable-use">Acceptable Use</a> · <a href="/security">Security</a></span></footer>
   </main>;
 }
