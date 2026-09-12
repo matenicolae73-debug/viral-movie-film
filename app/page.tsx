@@ -261,7 +261,7 @@ export default function Home() {
   const readyUrl = selectedScene ? videoUrls[selectedScene.id] : "";
 
   return <main className="app-shell">
-    <nav className="topbar"><div className="brand"><div className="brand-icon">🎬</div><div><strong>ViralMovie <span>AI</span></strong><small>Turn Your Ideas Into Viral Movies</small></div></div><div className="top-actions"><a href="/movies" className="top-link">🎞️ Movies</a><a href="/credits" className="top-link">🪙 Credits</a><button>👑 Go Premium</button><div className="profile">👤 Account⌄</div></div></nav>
+    <nav className="topbar"><div className="brand"><div className="brand-icon">🎬</div><div><strong>ViralMovie <span>AI</span></strong><small>Turn Your Ideas Into Viral Movies</small></div></div><div className="top-actions"><a href="/movies" className="top-link">🎞️ Movies</a><a href="/credits" className="top-link">🪙 Credits</a><a href="/owner" className="top-link">👑 Owner</a><button>👑 Go Premium</button><div className="profile">👤 Account⌄</div></div></nav>
     <div className="layout">
       <aside className="sidebar"><div className="side-links">
         {["⌂ Dashboard", "🎬 Create Movie", "▣ Create Scene", "▶ My Videos", "☆ Viral Templates", "↗ Social Media", "◉ Credits & Plans", "⚙ Settings"].map((x, i) => <button key={x} className={i === 1 ? "side-link active" : "side-link"} onClick={() => i === 1 ? go(0) : setStatus(`${x.replace(/^\S+\s/, "")} is coming next.`)}>{x}</button>)}
