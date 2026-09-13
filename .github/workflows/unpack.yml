@@ -5,14 +5,12 @@ on:
   push:
     paths:
       - "*.zip"
-      - ".github/workflows/unpack.yml"
 
 permissions:
   contents: write
 
 jobs:
   unpack:
-    name: unpack
     runs-on: ubuntu-latest
 
     steps:
@@ -23,22 +21,20 @@ jobs:
           fetch-depth: 0
 
       - name: Find ZIP
-        id: find_zip
         shell: bash
         run: |
           set -e
 
-          ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' -printf '%f\n' | head -n 1)"
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: Nu există niciun fișier ZIP în root-ul repository-ului."
-            echo "Fișiere găsite:"
+            echo "Nu există niciun ZIP în root."
             ls -la
             exit 1
           fi
 
           echo "ZIP găsit: $ZIP_FILE"
-          echo "zip_file=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
 
       - name: Extract ZIP
         shell: bash
@@ -46,15 +42,13 @@ jobs:
           set -e
 
           rm -rf extracted
-          mkdir -p extracted
+          mkdir extracted
 
-          unzip -q "${{ steps.find_zip.outputs.zip_file }}" -d extracted
+          unzip -q "$ZIP_FILE" -d extracted
 
-          echo "ZIP extras cu succes."
-          find extracted -maxdepth 3 -type f | head -100
+          echo "ZIP extras."
 
-      - name: Find project root
-        id: project
+      - name: Find project
         shell: bash
         run: |
           set -e
@@ -62,21 +56,67 @@ jobs:
           PROJECT_DIR="extracted"
 
           if [ ! -f "$PROJECT_DIR/package.json" ]; then
-            FOUND_PACKAGE="$(find extracted -type f -name package.json -print -quit)"
+            PACKAGE_FILE=$(find extracted -name package.json -type f | head -n 1)
 
-            if [ -n "$FOUND_PACKAGE" ]; then
-              PROJECT_DIR="$(dirname "$FOUND_PACKAGE")"
+            if [ -n "$PACKAGE_FILE" ]; then
+              PROJECT_DIR=$(dirname "$PACKAGE_FILE")
             fi
           fi
 
           if [ ! -f "$PROJECT_DIR/package.json" ]; then
-            echo "ERROR: Nu am găsit package.json în ZIP."
-            find extracted -maxdepth 5 -type f
+            echo "Nu am găsit package.json."
+            find extracted -maxdepth 4 -type f
             exit 1
           fi
 
-          echo "Project root: $PROJECT_DIR"
-          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Proiect găsit în: $PROJECT_DIR"
 
-      - name: Install project in repository root
-        shell:
+      - name: Copy project to root
+        shell: bash
+        run: |
+          set -e
+
+          shopt -s dotglob nullglob
+
+          for FILE in "$PROJECT_DIR"/*; do
+            NAME=$(basename "$FILE")
+
+            if [ "$NAME" = ".git" ]; then
+              continue
+            fi
+
+            if [ "$NAME" = "extracted" ]; then
+              continue
+            fi
+
+            rm -rf "./$NAME"
+            cp -R "$FILE" "./$NAME"
+          done
+
+          rm -rf extracted
+          rm -f ./*.zip
+
+          echo "Proiect copiat în root."
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Nu există modificări."
+            exit 0
+          fi
+
+          git commit -m "Unpack project automatically"
+
+      - name: Push changes
+        shell: bash
+        run: |
+          git push
