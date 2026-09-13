@@ -15,8 +15,7 @@ export async function POST(request: Request) {
     if (!r.ok) return NextResponse.json({ ok: false, message: d?.detail || d?.message || `Transcription failed (HTTP ${r.status}).` }, { status: r.status });
     const text = String(d?.output || d?.text || d?.data?.output || "").trim();
     if (!text) return NextResponse.json({ ok: true, srt: "" });
-    const index = Math.floor(start / 5) + 1;
-    const srt = `${index}\n${timecode(start)} --> ${timecode(start + 5)}\n${text}\n`;
+    const srt = `1\n${timecode(start)} --> ${timecode(start + 5)}\n${text}\n`;
     return NextResponse.json({ ok: true, srt });
   } catch (e) { return NextResponse.json({ ok: false, message: e instanceof Error ? e.message : "Subtitle generation failed." }, { status: 500 }); }
 }

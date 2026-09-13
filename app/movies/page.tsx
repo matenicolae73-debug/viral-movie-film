@@ -29,7 +29,11 @@ export default function Movies(){
       <p>Discover original stories, cinematic worlds and AI movies published online. A modern streaming experience built for the next generation of moviemaking.</p>
       <div className="hero-actions">
         <a className="hero-cta" href="/">✦ Create a movie</a>
-        <span className="hero-note">AI originals • 4K-ready • cinematic stories</span>
+        <span className="hero-note">AI originals • cinematic stories • new worlds</span>
+      </div>
+      <div className="cinema-showcase" aria-label="AI movie showcase">
+        <div className="showcase-main"><img src="/hero-dashboard.png" alt="AI cinematic movie world"/><div><span>VIRALMOVIE ORIGINALS</span><b>Stories made to be watched.</b></div></div>
+        <div className="showcase-stack"><img src="/ai-poster-1.svg" alt="AI movie poster The Last Portal"/><img src="/ai-poster-2.svg" alt="AI movie poster After Midnight"/><img src="/ai-poster-3.svg" alt="AI movie poster Beyond the Blue"/></div>
       </div>
     </section>
 
