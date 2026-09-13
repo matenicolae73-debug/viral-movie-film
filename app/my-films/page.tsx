@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Page(){return <main className="simple-page"><Link href="/">← ViralMovie AI</Link><h1>{My Films}</h1><div className="simple-card"><h2>{🎞️} {Your Films}</h2><p>{Rendered films will be listed here. The current prototype keeps the latest rendered film locally on this device.}</p><Link href="/" className="hero-cta">Create Film →</Link></div></main>}

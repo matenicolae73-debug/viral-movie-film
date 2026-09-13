@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Page(){return <main className="simple-page"><Link href="/">← ViralMovie AI</Link><h1>{Projects}</h1><div className="simple-card"><h2>{▣} {Movie Projects}</h2><p>{Projects preserve your idea, screenplay, characters, scenes and generation state for the production workflow.}</p><Link href="/" className="hero-cta">Create Film →</Link></div></main>}
