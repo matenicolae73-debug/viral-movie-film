@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     if (body?.adultConfirmed !== true) return NextResponse.json({ ok: false, message: "You must confirm that you are 18+ and agree to the ViralMovie safety rules." }, { status: 400 });
     const key = process.env.FAL_KEY?.trim();
     if (!key) return NextResponse.json({ ok: false, message: "The video service is temporarily unavailable." }, { status: 500 });
-    const response = await fetch(`https://queue.fal.run/${MODEL}`, { method: "POST", headers: { Authorization: `Key ${key}`, "Content-Type": "application/json", Accept: "application/json", "X-Fal-Store-IO": "1" }, body: JSON.stringify({ prompt: finalPrompt, aspect_ratio, duration: 5, resolution: "540p", audio: true }), cache: "no-store" });
+    const response = await fetch(`https://queue.fal.run/${MODEL}`, { method: "POST", headers: { Authorization: `Key ${key}`, "Content-Type": "application/json", Accept: "application/json", "X-Fal-Store-IO": "1" }, body: JSON.stringify({ input: { prompt: finalPrompt, aspect_ratio, duration: 5, resolution: "540p", audio: true } }), cache: "no-store" });
     const raw = await response.text().catch(() => "");
     let data: any = {}; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
     if (!response.ok) return NextResponse.json({ ok: false, message: data?.detail || data?.message || data?.error || "The video service returned an error. Please try again.", falStatus: response.status }, { status: response.status });
