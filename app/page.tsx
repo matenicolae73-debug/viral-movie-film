@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const durations = Array.from({ length: 60 }, (_, i) => i + 1);
+const durations = [1, 5, 10, 20, 30, 45, 60];
 const steps = [
   ["IDEA", "Your concept"], ["AI STORY", "Plot, scenes and continuity"],
   ["CHARACTERS", "Consistent characters"], ["STORYBOARD", "Automatic scene breakdown"],
@@ -359,7 +359,7 @@ export default function Home() {
             <section className="card create-card" id="stage-0"><div className="title-row"><div className="title-icon">🎬</div><div><h2>Create Movie</h2><p>Describe your idea and let AI bring it to life!</p></div></div>
               <textarea value={idea} onChange={e => setIdea(e.target.value)} placeholder="Enter your movie idea...\n\nExample: A young astronaut lands on Mars and discovers a mysterious underground city built by an ancient civilization..."/>
               <div className="field-row"><select value={genre} onChange={e => setGenre(e.target.value)}><option>Cinematic</option>{["Action","Drama","Sci-Fi","Horror","Comedy","Fantasy","Thriller","Romance"].map(x => <option key={x}>{x}</option>)}</select><select value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select></div>
-              <div className="duration-line">Movie duration <div className="duration-pills">{durations.map(x => <button type="button" key={x} className={minutes === x ? "selected" : ""} onClick={() => setMinutes(x)}>{x} min</button>)}</div></div>
+              <div className="duration-line">Movie duration <div className="duration-pills">{durations.map(x => <button type="button" key={x} className={minutes === x ? "selected" : ""} onClick={() => setMinutes(x)}>{x === 60 ? "1h" : x >= 60 ? `${x}m` : `${x}m`}</button>)}</div></div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap"}}><button type="button" className="generate" onClick={generateStory}>✦ Generate Movie</button><button type="button" className="secondary" onClick={generateTestFilm}>🧪 Test Film · 1 min</button></div><div className="status-line">{status}</div><div className="info-box">Test Film creates a 1-minute movie plan (12 scenes) and automatically starts AI generation for Scene 1. It still uses your configured video provider credits.</div>
             </section>
 
@@ -378,9 +378,9 @@ export default function Home() {
 
             <section className="card" id="stage-5"><div className="section-head"><h2>🔊 AI Audio</h2><span>GENERATED</span></div><div className="audio-row">{(["dialogue","narration","sfx","music"] as const).map(k => <button key={k} onClick={() => setAudio(a => ({ ...a, [k]: !a[k] }))}>{audio[k] ? "✓" : "○"} {k.toUpperCase()}</button>)}</div><p className="muted">Every generated scene uses Vidu Q3 direct audio-video generation. The AI creates synchronized dialogue/voice acting, narration when appropriate, music, ambience, Foley and sound effects according to the selected controls.</p></section>
 
-            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ Movie</h2><span>WORKSPACE</span></div><div className="movie-tile"><strong>{minutes} min</strong><span>{story?.sceneCount || 0} planned scenes • {Object.keys(generated).length} submitted</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">Long-film timeline ready: generate the scenes in order and keep the same character/style context. Each completed scene can be previewed or downloaded. Final automatic stitching will be added as the next movie-rendering layer.</p></section>
-
             <section className="card production-pack" id="production-pack"><div className="section-head"><h2>🎬 AI Production Pack</h2><span>{trailerState}</span></div><p className="muted">When a movie is created, ViralMovie automatically prepares a cinematic poster, trailer teaser and subtitle track as scenes are generated.</p><div className="production-grid"><div className="production-item"><b>🖼️ Poster</b>{posterUrl ? <img src={posterUrl} alt="AI movie poster"/> : <span>Generating automatically…</span>}</div><div className="production-item"><b>🎞️ Trailer</b>{trailerUrl ? <video controls playsInline src={trailerUrl}/> : <span>{trailerState === "PROCESSING" ? "Processing in the background…" : "Generating automatically…"}</span>}</div><div className="production-item"><b>💬 Subtitles</b><span>{subtitleText ? `${subtitleText.split("\\n").filter(Boolean).length} subtitle cues ready.` : "Generated automatically after each completed scene."}</span>{subtitleText && <button type="button" className="secondary" onClick={() => { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([subtitleText+"\\n"],{type:"text/plain"})); a.download="viralmovie-subtitles.srt"; a.click(); }}>⇩ Download .SRT</button>}</div></div><div className="info-box">{productionMessage}</div></section>
+
+            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ Movie</h2><span>WORKSPACE</span></div><div className="movie-tile"><strong>{minutes} min</strong><span>{story?.sceneCount || 0} planned scenes • {Object.keys(generated).length} submitted</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">Long-film timeline ready: generate the scenes in order and keep the same character/style context. Each completed scene can be previewed or downloaded. Final automatic stitching will be added as the next movie-rendering layer.</p></section>
 
             <section className="card" id="stage-7"><div className="section-head"><h2>⇩ Export</h2><span>SHARE</span></div><button className="generate" onClick={exportProject}>Export Project</button></section>
           </div>
