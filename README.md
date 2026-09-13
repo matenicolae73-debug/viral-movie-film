@@ -1,25 +1,76 @@
-# ViralMovie AI V5.0 — Full Film Pipeline
+# ViralMovie AI V4.0.1
 
-This build adds the requested automatic movie workflow:
+Professional dark cinematic AI movie studio for Vercel.
 
-IDEA → STORY → CHARACTER BIBLE → STORYBOARD → AI VIDEO → AUDIO → FINAL MP4 → TRAILER → SUBTITLES → EXPORT
+## Working flow
+IDEA -> AI STORY -> CHARACTERS -> STORYBOARD -> AI VIDEO -> AUDIO -> MOVIE -> EXPORT
 
-## New
-- Movies Online streaming-style public page with Latest, Trending, AI Originals, Action, Sci-Fi, Drama and Short Films.
-- Film navigation: Create Film, My Films, Movies Online, Characters, Projects, Account.
-- Full-film confirmation before bulk paid generation.
-- Automatic generation of all visible storyboard scenes.
-- Client-side FFmpeg assembly into one MP4.
-- Automatic short trailer from selected key scenes.
-- Automatic SRT subtitles generated from the screenplay/scene text.
-- Final movie preview and MP4 download.
-- Character bible is injected into every scene prompt for continuity.
-- Audio preferences for dialogue, narration, music and SFX.
-- Account and Credits pages prepared for the billing layer.
+## Video engine
+Vidu Q3 Turbo through fal.ai. The `FAL_KEY` stays server-side in Vercel Environment Variables.
 
-## Important technical note
-The final assembly is performed in the browser with FFmpeg WASM so the prototype does not require a paid server-side video-rendering service. This is practical for short tests, but long films can use a lot of phone memory/CPU. For 10–60 minute production movies, the next production step is a persistent storage + background render worker.
+For economical testing the app submits 5-second, 540p scenes. fal currently documents Q3 Turbo at $0.035/video second at 540p, so a 5-second test costs about $0.175 before any account-specific pricing/credits. See the official API docs: https://fal.ai/models/fal-ai/vidu/q3/text-to-video/turbo/api
 
-The current automatic subtitles are screenplay/scene-text based SRT subtitles. True speech-to-text subtitles from the generated audio require a transcription service and can be added as the production audio stage.
+## Fixed in V4.0.1
+- Added the missing video status API route.
+- Added the missing video download API route.
+- Movie Preview now receives the completed Vidu MP4 URL.
+- Preview uses a real HTML video player with controls.
+- Download streams the MP4 through the server.
+- Facebook / Instagram / TikTok / YouTube / Share buttons remain available after generation.
+- Character and Storyboard controls remain interactive.
 
-FAL_KEY remains server-side. Never put it in client code.
+Social platforms may require the user to download the MP4 and upload it manually; browser buttons cannot silently upload to a user's social account without the platform's authentication/API flow.
+
+## Important
+The current app generates individual 5-second scenes. It does not yet stitch all scenes into one final long MP4 movie. That is the next engineering step.
+
+
+## V4.1 video generation fix
+- Added visible Vidu/fal.ai submission, queue, status and result errors in the UI.
+- Generate Scene now shows SUBMITTING / IN_QUEUE / IN_PROGRESS / READY or the exact server error.
+- The Generate Scene button is disabled while the request is running to prevent duplicate paid requests.
+- Vidu Q3 Turbo remains server-side through FAL_KEY.
+- Test with 5-second 540p scenes first; fal.ai charges for inference.
+
+
+## V4.2 Character Selection Fix
+- Characters are now real selectable client-side cards.
+- Selected character is highlighted and shown in the AI Video panel.
+- The selected character description is added to the Vidu scene prompt for continuity.
+- Project export includes the selected character.
+
+
+## V4.2.1 button fix
+- Storyboard "Open & Generate" now actually starts video generation; previously it only selected the scene.
+- Character cards are real selectable buttons and the selected character is included in the generation prompt.
+- Video API errors are shown directly in the status line.
+
+
+## V4.2.2 video reliability fix
+- Generate Scene now shows non-JSON/server errors instead of silently failing.
+- Added a 30-second client timeout with a clear Vercel/FAL_KEY message.
+- Status polling checks immediately and normalizes fal.ai status/state responses.
+- Added `/api/video/health` to confirm the deployed server sees `FAL_KEY`.
+- ZIP filename intentionally remains `ViralMovie-AI-V4-FIXED.zip`.
+
+## V4.2.2 diagnostics
+The video status endpoint now exposes fal.ai `error_type` and recent runner logs, and the UI displays them when a Vidu job reaches FAILED. This makes credit/auth/model/input failures visible instead of showing only a generic failure.
+
+## V4.2.2 fix
+Fixed the fal.ai queue submission payload. The queue API expects the model inputs under an `input` object; the previous server route sent prompt/settings at the top level. This could cause Generate Scene to fail even with a valid FAL_KEY.
+
+## V4 video generation fix
+- FAL_KEY is trimmed server-side to avoid accidental whitespace in Vercel environment values.
+- fal queue submission and status responses now preserve detailed HTTP/error information.
+- status polling uses the documented `logs=1` queue parameter.
+- the UI visibly reports FAL configuration and the last generation error inside AI Video and Movie.
+- FAL_KEY remains server-side.
+
+## ViralMovie AI safety and Movies catalog
+- The public generator is 18+ only and applies server-side prompt safety checks.
+- Blocked categories include pornography/sexual content, sexual content involving minors, non-consensual intimate imagery, realistic impersonation/deepfakes of real people, terrorism/extremism, scams/criminal activity, self-harm promotion, and extreme graphic violence.
+- These filters are a safety layer, not a guarantee; review and moderation remain necessary.
+- Only the owner can publish a finished generated video to the public Movies catalog.
+- Set `OWNER_PUBLISH_TOKEN` in Vercel. Keep it server-side.
+- Set `KV_REST_API_URL` and `KV_REST_API_TOKEN` (or the equivalent `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) for persistent Movies storage.
+- fal's API key remains server-side in `FAL_KEY`.

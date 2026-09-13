@@ -1,36 +1,28 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-
-function clampText(value: unknown, max = 900) {
-  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
-}
-
 export async function POST(req: Request) {
   const b = await req.json().catch(() => ({}));
-  const idea = clampText(b?.idea);
-  const genre = clampText(b?.genre || "Cinematic", 60);
+  const idea = String(b?.idea || "").trim();
+  const genre = String(b?.genre || "Cinematic");
   const minutes = Number(b?.minutes || 1);
 
   if (!idea) return NextResponse.json({ error: "Idea is required." }, { status: 400 });
 
   const safeMinutes = Math.min(60, Math.max(1, minutes));
   const sceneCount = Math.max(12, Math.round(safeMinutes * 12));
-  const visibleScenes = Math.min(sceneCount, 120);
-
-  const scenes = Array.from({ length: visibleScenes }, (_, i) => {
-    const n = i + 1;
-    const beat =
-      n === 1 ? "opening and visual hook" :
-      n === visibleScenes ? "climax and emotional ending" :
-      n % 4 === 0 ? "turning point and rising tension" :
-      n % 3 === 0 ? "character decision and discovery" :
-      "story progression and cinematic action";
+  // Long-form planning: 12 cinematic 5-second scenes per minute.
+  // Return the complete scene plan; the UI paginates it so 60-minute movies
+  // can still be navigated without losing scenes.
+  const scenes = Array.from({ length: sceneCount }, (_, i) => {
+    const id = i + 1;
+    const progress = id / sceneCount;
+    const act = progress <= 0.25 ? "ACT I — setup and discovery" : progress <= 0.5 ? "ACT II — rising conflict" : progress <= 0.75 ? "ACT III — escalation and turning point" : "ACT IV — climax and resolution";
+    const beat = id % 12 === 1 ? "establish the location and visual context" : id % 12 === 6 ? "advance the story with a meaningful character action or reveal" : id % 12 === 0 ? "end the beat with a visual hook that naturally leads into the next scene" : "continue the previous action with clear cause-and-effect";
     return {
-      id: n,
-      prompt: `Cinematic ${genre.toLowerCase()} scene ${n}: ${idea}. Focus on ${beat}. Maintain exact visual continuity, recurring characters, wardrobe, location, lighting and camera language.`,
-      subtitle: `Scene ${n}: ${beat}.`,
-      dialogue: n % 3 === 0 ? `We have to keep moving. This changes everything.` : ""
+      id,
+      durationSeconds: 5,
+      act,
+      prompt: `Cinematic ${genre.toLowerCase()} scene ${id} of ${sceneCount}. Movie idea: ${idea}. ${act}. ${beat}. Maintain strict continuity with previous and following scenes: same main characters, faces, wardrobe, props, locations, time of day, visual style and story logic. Use film-quality composition, realistic motion, consistent camera language, dramatic lighting and a clean beginning/middle/end for this 5-second shot. Do not reset the story or introduce unrelated characters.`
     };
   });
 
@@ -40,10 +32,8 @@ export async function POST(req: Request) {
     title: "ViralMovie Project",
     logline: `A ${genre.toLowerCase()} movie built from: ${idea}`,
     sceneCount,
-    visibleScenes,
+    visibleScenes: sceneCount,
     scenes,
-    note: sceneCount > visibleScenes
-      ? `The full plan contains ${sceneCount} scenes. This build shows the first ${visibleScenes}; long-film rendering should be done in batches.`
-      : "Scene plan ready."
+    note: `Complete long-film plan: ${sceneCount} scenes × 5 seconds. The storyboard UI shows 12 scenes per page.`
   });
 }
