@@ -18,36 +18,36 @@ export default function Movies(){
 
   return <main className="public-page">
     <header className="public-nav">
-      <a href="/" className="brand-link"><span className="brand-mark">▶</span><b>FILME AI</b><span>ONLINE</span></a>
+      <a href="/" className="brand-link"><span className="brand-mark">▶</span><b>AI MOVIES</b><span>ONLINE</span></a>
       <nav><a href="/">Studio</a><a className="active" href="/movies">Filme AI</a><a href="/credits">Credits</a></nav>
     </header>
 
     <section className="public-hero">
       <div className="hero-glow" />
-      <div className="hero-kicker">FILME AI • ONLINE CINEMA</div>
-      <h1>Filme create cu<br/><span>inteligență artificială.</span></h1>
-      <p>Descoperă povești originale, lumi cinematografice și filme AI publicate online. O experiență de cinema modernă, creată pentru generația AI.</p>
+      <div className="hero-kicker">AI MOVIES • ONLINE CINEMA</div>
+      <h1>Movies created with<br/><span>artificial intelligence.</span></h1>
+      <p>Discover original stories, cinematic worlds and AI movies published online. A modern streaming experience built for the next generation of moviemaking.</p>
       <div className="hero-actions">
-        <a className="hero-cta" href="/">✦ Creează un film</a>
+        <a className="hero-cta" href="/">✦ Create a movie</a>
         <span className="hero-note">AI originals • 4K-ready • cinematic stories</span>
       </div>
     </section>
 
     <section className="movie-catalog">
       <div className="section-head">
-        <div><div className="section-kicker">PREMIERE</div><h2>Filme AI Online</h2></div>
-        <span>{movies.length} {movies.length===1?'film':'filme'}</span>
+        <div><div className="section-kicker">LATEST PREMIERES</div><h2>AI Movies Online</h2></div>
+        <span>{movies.length} {movies.length===1?'movie':'moviee'}</span>
       </div>
 
-      {loading?<div className="info-box">Se încarcă cinematograful...</div>
-      :error?<div className="error-box">{error}<br/><small>Conectează Upstash Redis pentru catalogul public.</small></div>
+      {loading?<div className="info-box">Loading the cinema...</div>
+      :error?<div className="error-box">{error}<br/><small>Connect Upstash Redis to enable the public catalog.</small></div>
       :movies.length===0?
         <div className="empty-catalog">
           <div className="empty-orb">✦</div>
-          <div className="empty-kicker">FIRST PREMIERE</div>
-          <h3>Următorul film începe aici.</h3>
-          <p>Filmele finalizate pot fi publicate de owner în cinematograful public. Fiecare nouă premieră va apărea aici.</p>
-          <a className="watch" href="/">🎬 Creează primul film</a>
+          <div className="empty-kicker">FIRST LATEST PREMIERES</div>
+          <h3>Următorul movie începe aici.</h3>
+          <p>Finished movies can be published by the authenticated owner to the public catalog. Every new premiere will appear here.</p>
+          <a className="watch" href="/">🎬 Creează primul movie</a>
         </div>
       :<div className="catalog-grid">
         {movies.map(m=><article className="catalog-card" key={m.slug}>
@@ -58,15 +58,15 @@ export default function Movies(){
             <span className="ai-badge">AI ORIGINAL</span>
           </div>
           <div className="catalog-body">
-            <div className="film-meta">AI FILM <span>•</span> ONLINE</div>
+            <div className="movie-meta">AI MOVIE <span>•</span> ONLINE</div>
             <h3>{m.title}</h3>
             <p>{m.description}</p>
-            <a href={`/movie/${m.slug}`} className="watch">▶ Vezi filmul</a>
+            <a href={`/movie/${m.slug}`} className="watch">▶ Vezi movieul</a>
           </div>
         </article>)}
       </div>}
     </section>
 
-    <footer>FILME AI ONLINE • Cinema original creat cu AI • <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/acceptable-use">Acceptable Use</a></footer>
+    <footer>AI MOVIES ONLINE • Original cinema created with AI • <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/acceptable-use">Acceptable Use</a></footer>
   </main>
 }

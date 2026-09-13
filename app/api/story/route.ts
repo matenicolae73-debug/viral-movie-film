@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       id,
       durationSeconds: 5,
       act,
-      prompt: `Cinematic ${genre.toLowerCase()} scene ${id} of ${sceneCount}. Movie idea: ${idea}. ${act}. ${beat}. Maintain strict continuity with previous and following scenes: same main characters, faces, wardrobe, props, locations, time of day, visual style and story logic. Use film-quality composition, realistic motion, consistent camera language, dramatic lighting and a clean beginning/middle/end for this 5-second shot. Do not reset the story or introduce unrelated characters.`
+      prompt: `Cinematic ${genre.toLowerCase()} scene ${id} of ${sceneCount}. Movie idea: ${idea}. ${act}. ${beat}. Maintain strict continuity with previous and following scenes: same main characters, faces, wardrobe, props, locations, time of day, visual style and story logic. Use film-quality composition, realistic motion, consistent camera language, dramatic lighting and a clean beginning/middle/end for this 5-second shot. Generate complete synchronized AI audio for the shot: natural character dialogue when characters speak, cinematic narration when appropriate, realistic ambience, Foley and sound effects, and an appropriate original cinematic music score. Keep voices, tone and audio continuity consistent across scenes. Do not reset the story or introduce unrelated characters.`
     };
   });
 
