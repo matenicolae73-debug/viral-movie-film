@@ -28,13 +28,13 @@ export async function POST(request: Request) {
     const finalPrompt = `${prompt}\n\n${audioPrompt}`.slice(0, 2000);
     if (body?.adultConfirmed !== true) return NextResponse.json({ ok: false, message: "You must confirm that you are 18+ and agree to the ViralMovie safety rules." }, { status: 400 });
     const key = process.env.FAL_KEY?.trim();
-    if (!key) return NextResponse.json({ ok: false, message: "FAL_KEY is missing on this Vercel deployment." }, { status: 500 });
+    if (!key) return NextResponse.json({ ok: false, message: "The video service is temporarily unavailable." }, { status: 500 });
     const response = await fetch(`https://queue.fal.run/${MODEL}`, { method: "POST", headers: { Authorization: `Key ${key}`, "Content-Type": "application/json", Accept: "application/json", "X-Fal-Store-IO": "1" }, body: JSON.stringify({ prompt: finalPrompt, aspect_ratio, duration: 5, resolution: "540p", audio: true }), cache: "no-store" });
     const raw = await response.text().catch(() => "");
     let data: any = {}; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
-    if (!response.ok) return NextResponse.json({ ok: false, message: data?.detail || data?.message || data?.error || `fal.ai returned HTTP ${response.status}.`, falStatus: response.status }, { status: response.status });
+    if (!response.ok) return NextResponse.json({ ok: false, message: data?.detail || data?.message || data?.error || "The video service returned an error. Please try again.", falStatus: response.status }, { status: response.status });
     const requestId = data?.request_id || data?.requestId;
-    if (!requestId) return NextResponse.json({ ok: false, message: "fal.ai responded without a request ID.", data }, { status: 502 });
+    if (!requestId) return NextResponse.json({ ok: false, message: "The video service did not return a valid request. Please try again.", data }, { status: 502 });
     return NextResponse.json({ ok: true, audioEnabled: true, audio, requestId, responseUrl: data?.response_url || data?.responseUrl || null, statusUrl: data?.status_url || data?.statusUrl || null, data });
   } catch (e) { return NextResponse.json({ ok: false, message: e instanceof Error ? e.message : "Video request failed." }, { status: 500 }); }
 }

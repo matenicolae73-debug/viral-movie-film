@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const start = Number(body?.start_seconds || 0);
     const key = process.env.FAL_KEY?.trim();
     if (!audioUrl) return NextResponse.json({ ok: false, message: "audio_url is required." }, { status: 400 });
-    if (!key) return NextResponse.json({ ok: false, message: "FAL_KEY is missing." }, { status: 500 });
+    if (!key) return NextResponse.json({ ok: false, message: "The service is temporarily unavailable." }, { status: 500 });
     const r = await fetch("https://fal.run/fal-ai/speech-to-text", { method: "POST", headers: { Authorization: `Key ${key}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ audio_url: audioUrl }), cache: "no-store" });
     const raw = await r.text().catch(() => ""); let d: any = {}; try { d = raw ? JSON.parse(raw) : {}; } catch {}
     if (!r.ok) return NextResponse.json({ ok: false, message: d?.detail || d?.message || `Transcription failed (HTTP ${r.status}).` }, { status: r.status });
