@@ -1,10 +1,7 @@
-name: Unpack ZIP to root
+name: Unpack ViralMovie AI
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "*.zip"
 
 permissions:
   contents: write
@@ -17,33 +14,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find ZIP
-        id: zip
+      - name: Find ViralMovie ZIP
         run: |
-          ZIP_FILE=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
+          set -e
 
-          if [ -z "$ZIP_FILE" ]; then
-            echo "No ZIP file found."
+          ZIP_FILE="./ViralMovie-AI-V4-FIXED(7)(1).zip"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP not found!"
+            echo "Files in repository:"
+            ls -lah
             exit 1
           fi
 
-          echo "Using: $ZIP_FILE"
-          echo "zip_file=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          echo "ZIP FOUND:"
+          ls -lh "$ZIP_FILE"
 
       - name: Unpack ZIP
         run: |
-          ZIP_FILE="${{ steps.zip.outputs.zip_file }}"
+          set -e
 
-          unzip -o "$ZIP_FILE" -d .
+          ZIP_FILE="./ViralMovie-AI-V4-FIXED(7)(1).zip"
 
-          rm -f "$ZIP_FILE"
+          rm -rf extracted
+          mkdir extracted
 
-      - name: Remove ZIP leftovers
+          unzip -o "$ZIP_FILE" -d extracted
+
+      - name: Copy project to repository root
         run: |
-          find . -maxdepth 1 -type f -iname "*.zip" -delete
+          set -e
 
-      - name: Commit extracted project
+          find extracted -mindepth 1 -maxdepth 1 ! -name ".github" -exec cp -R {} . \;
+
+          rm -rf extracted
+          rm -f "./ViralMovie-AI-V4-FIXED(7)(1).zip"
+
+      - name: Commit project
         run: |
+          set -e
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -52,6 +62,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Unpack ViralMovie AI project"
+            git commit -m "Unpack ViralMovie AI V4"
             git push
           fi
