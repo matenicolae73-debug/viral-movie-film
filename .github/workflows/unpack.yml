@@ -1,119 +1,57 @@
-name: Unpack project
+name: Unpack ZIP to root
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "*.zip"
 
 permissions:
   contents: write
 
 jobs:
   unpack:
-    name: unpack
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          token: ${{ github.token }}
-          fetch-depth: 0
+        uses: actions/checkout@v4
 
-      - name: Check ZIP
-        shell: bash
+      - name: Find ZIP
+        id: zip
         run: |
-          set -e
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
 
-          ZIP_FILE="ViralMovie-AI-V4-FIXED(7)(1).zip"
-
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "EROARE: Nu am găsit fișierul:"
-            echo "$ZIP_FILE"
-            echo ""
-            echo "Fișierele din root sunt:"
-            ls -la
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No ZIP file found."
             exit 1
           fi
 
-          echo "ZIP găsit:"
-          ls -lh "$ZIP_FILE"
+          echo "Using: $ZIP_FILE"
+          echo "zip_file=$ZIP_FILE" >> "$GITHUB_OUTPUT"
 
-      - name: Extract ZIP
-        shell: bash
+      - name: Unpack ZIP
         run: |
-          set -e
+          ZIP_FILE="${{ steps.zip.outputs.zip_file }}"
 
-          rm -rf extracted
-          mkdir -p extracted
+          unzip -o "$ZIP_FILE" -d .
 
-          unzip -q "ViralMovie-AI-V4-FIXED(7)(1).zip" -d extracted
+          rm -f "$ZIP_FILE"
 
-          echo "ZIP extras cu succes."
-
-      - name: Find project folder
-        shell: bash
+      - name: Remove ZIP leftovers
         run: |
-          set -e
+          find . -maxdepth 1 -type f -iname "*.zip" -delete
 
-          PROJECT_DIR="extracted"
-
-          if [ ! -f "$PROJECT_DIR/package.json" ]; then
-            PACKAGE_FILE=$(find extracted -type f -name "package.json" -print -quit)
-
-            if [ -z "$PACKAGE_FILE" ]; then
-              echo "EROARE: Nu am găsit package.json în ZIP."
-              find extracted -maxdepth 5 -type f
-              exit 1
-            fi
-
-            PROJECT_DIR=$(dirname "$PACKAGE_FILE")
-          fi
-
-          echo "Folder proiect: $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-      - name: Copy project to repository root
-        shell: bash
+      - name: Commit extracted project
         run: |
-          set -e
-
-          shopt -s dotglob nullglob
-
-          for ITEM in "$PROJECT_DIR"/*; do
-            NAME=$(basename "$ITEM")
-
-            if [ "$NAME" = ".git" ]; then
-              continue
-            fi
-
-            rm -rf "./$NAME"
-            cp -R "$ITEM" "./$NAME"
-          done
-
-          rm -rf extracted
-          rm -f "ViralMovie-AI-V4-FIXED(7)(1).zip"
-
-          echo "Proiectul a fost copiat în root."
-
-      - name: Commit changes
-        shell: bash
-        run: |
-          set -e
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add -A
 
           if git diff --cached --quiet; then
-            echo "Nu există modificări."
-            exit 0
+            echo "No changes to commit."
+          else
+            git commit -m "Unpack ViralMovie AI project"
+            git push
           fi
-
-          git commit -m "Unpack ViralMovie project"
-
-      - name: Push changes
-        shell: bash
-        run: |
-          set -e
-
-          git push origin HEAD:${{ github.ref_name }}
