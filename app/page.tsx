@@ -50,7 +50,12 @@ export default function Home() {
   const go = (index: number) => {
     setActive(index);
     setStatus(index === 0 ? "Start with your movie idea." : `${steps[index][0]} section opened.`);
-    setTimeout(() => document.getElementById(`stage-${index}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+    setTimeout(() => {
+      const el = document.getElementById(`stage-${index}`);
+      if (!el) return;
+      const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - 82);
+      window.scrollTo({ top, behavior: "smooth" });
+    }, 60);
   };
 
   async function generateStory() {
@@ -78,17 +83,29 @@ export default function Home() {
   }
 
   function openStoryboard() {
-    if (!story) { setStatus("Generate the Movie Plan first, then create your scenes."); go(1); return; }
     setActive(3);
-    setStatus(`${story.sceneCount} scenes are ready in your storyboard.`);
-    setTimeout(() => document.getElementById("stage-3")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+    if (!story) {
+      setStatus("Generate the Movie Plan first, then create your scenes.");
+    } else {
+      setStatus(`${story.sceneCount} scenes are ready in your storyboard.`);
+    }
+    setTimeout(() => {
+      const el = document.getElementById("stage-3");
+      if (!el) return;
+      window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - 82), behavior: "smooth" });
+    }, 60);
   }
 
   function openVideo() {
-    if (!story) { setStatus("Generate the Movie Plan first, then open AI Video."); go(1); return; }
     setActive(4);
-    setStatus(selectedScene ? `Scene ${selectedScene.id} is selected for video generation.` : "Select a storyboard scene to generate video.");
-    setTimeout(() => document.getElementById("stage-4")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+    setStatus(story
+      ? (selectedScene ? `Scene ${selectedScene.id} is selected for video generation.` : "Select a storyboard scene to generate video.")
+      : "Generate the Movie Plan first, then select a storyboard scene for AI Video.");
+    setTimeout(() => {
+      const el = document.getElementById("stage-4");
+      if (!el) return;
+      window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - 82), behavior: "smooth" });
+    }, 60);
   }
 
   function selectCharacter(character: Character) {
@@ -299,7 +316,12 @@ export default function Home() {
           </div>
 
           <aside className="right-column" id="preview"><section className="card preview-card"><div className="section-head"><h2>▶ Movie Preview</h2><span>LIVE</span></div>{readyUrl ? <video id="movie-preview-video" controls playsInline preload="metadata" src={readyUrl}/> : <div className="preview-empty"><img src="/hero-dashboard.png" alt="Movie preview"/><span className="play">▶</span><strong>{selectedScene ? `Scene ${selectedScene.id} — press Generate Scene below` : "Select a scene to create your preview"}</strong></div>}<div className="preview-actions">{selectedScene && !readyUrl && <button type="button" className="preview" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? "⏳ Generating..." : "✦ Generate Scene"}</button>}<button className="download" disabled={!readyUrl} onClick={() => selectedScene && downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" disabled={!readyUrl} onClick={() => selectedScene && previewVideo(selectedScene.id)}>◉ Preview</button></div>{readyUrl && selectedScene && <><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">Social buttons open the platform upload/share page. Download the MP4 first when a platform requires a file upload.</p></>}</section>
-            <section className="card pipeline"><div className="section-head"><h2>Movie Pipeline</h2><span>V4</span></div><div className="steps">{steps.map(([name, desc], i) => <button type="button" key={name} className={`step ${active === i ? "active" : ""} ${i < active ? "done" : ""}`} onClick={() => i === 2 ? openCharacters() : i === 3 ? openStoryboard() : i === 4 ? openVideo() : go(i)}><b>{i + 1}. {name}</b><span>{i < active ? "✓" : i === active ? "ACTIVE" : "OPEN"}</span><small>{desc}</small></button>)}</div></section>
+            <section className="card pipeline"><div className="section-head"><h2>Movie Pipeline</h2><span>V4</span></div><div className="steps">{steps.map(([name, desc], i) => <button type="button" key={name} className={`step ${active === i ? "active" : ""} ${i < active ? "done" : ""}`} onClick={() => {
+          if (i === 2) openCharacters();
+          else if (i === 3) openStoryboard();
+          else if (i === 4) openVideo();
+          else go(i);
+        }}><b>{i + 1}. {name}</b><span>{i < active ? "✓" : i === active ? "ACTIVE" : "OPEN"}</span><small>{desc}</small></button>)}</div></section>
             <section className="card my-movies"><div className="section-head"><h2>🎞️ My Movies</h2><span>View all →</span></div><div className="movie-item"><div className="mini-art">🌌</div><div><b>{story?.title || "Your next movie"}</b><small>{story ? `${minutes}:00 • Project ready` : "Start a new project"}</small></div><button onClick={() => go(0)}>Play</button></div></section>
           </aside>
         </div>

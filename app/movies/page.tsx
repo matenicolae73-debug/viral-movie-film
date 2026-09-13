@@ -19,7 +19,7 @@ export default function Movies(){
   return <main className="public-page">
     <header className="public-nav">
       <a href="/" className="brand-link"><span className="brand-mark">▶</span><b>AI MOVIES</b><span>ONLINE</span></a>
-      <nav><a href="/">Studio</a><a className="active" href="/movies">Filme AI</a><a href="/credits">Credits</a></nav>
+      <nav><a href="/">Studio</a><a className="active" href="/movies">AI Movies</a><a href="/credits">Credits</a></nav>
     </header>
 
     <section className="public-hero">
@@ -36,7 +36,7 @@ export default function Movies(){
     <section className="movie-catalog">
       <div className="section-head">
         <div><div className="section-kicker">LATEST PREMIERES</div><h2>AI Movies Online</h2></div>
-        <span>{movies.length} {movies.length===1?'movie':'moviee'}</span>
+        <span>{movies.length} {movies.length===1?'movie':'movies'}</span>
       </div>
 
       {loading?<div className="info-box">Loading the cinema...</div>
@@ -45,9 +45,9 @@ export default function Movies(){
         <div className="empty-catalog">
           <div className="empty-orb">✦</div>
           <div className="empty-kicker">FIRST LATEST PREMIERES</div>
-          <h3>Următorul movie începe aici.</h3>
+          <h3>The next movie starts here.</h3>
           <p>Finished movies can be published by the authenticated owner to the public catalog. Every new premiere will appear here.</p>
-          <a className="watch" href="/">🎬 Creează primul movie</a>
+          <a className="watch" href="/">🎬 Create your first movie</a>
         </div>
       :<div className="catalog-grid">
         {movies.map(m=><article className="catalog-card" key={m.slug}>
@@ -61,7 +61,7 @@ export default function Movies(){
             <div className="movie-meta">AI MOVIE <span>•</span> ONLINE</div>
             <h3>{m.title}</h3>
             <p>{m.description}</p>
-            <a href={`/movie/${m.slug}`} className="watch">▶ Vezi movieul</a>
+            <a href={`/movie/${m.slug}`} className="watch">▶ Watch movie</a>
           </div>
         </article>)}
       </div>}
