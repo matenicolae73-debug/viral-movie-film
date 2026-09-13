@@ -33,7 +33,7 @@ export default function Movies(){
       </div>
     </section>
 
-    <section className="movie-catalog">
+    <section className="movie-catalog"><div className="catalog-showcase"><div><div className="section-kicker">VIRALMOVIE AI ORIGINALS</div><h2>Welcome to your AI cinema.</h2><p>Featured stories, new releases and cinematic worlds created with ViralMovie.</p></div><div className="showcase-collage"><img src="/hero-dashboard.png" alt="AI cinema"/><img src="/hero-dashboard.png" alt="AI movie world"/><img src="/hero-dashboard.png" alt="AI cinematic scene"/></div></div>
       <div className="section-head">
         <div><div className="section-kicker">LATEST PREMIERES</div><h2>AI Movies Online</h2></div>
         <span>{movies.length} {movies.length===1?'movie':'movies'}</span>
