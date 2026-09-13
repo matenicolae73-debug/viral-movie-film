@@ -25,10 +25,12 @@ jobs:
         run: |
           set -e
 
-          ZIP="$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)"
+          ZIP="$(find . -maxdepth 1 -type f -iname 'ViralMovie-AI-AUTO-UNPACK*.zip' -print -quit)"
 
           if [ -z "$ZIP" ]; then
-            echo "ERROR: ZIP-ul nu este in root."
+            echo "ERROR: Nu gasesc ViralMovie-AI-AUTO-UNPACK*.zip in root."
+            echo "ZIP-uri gasite:"
+            find . -maxdepth 1 -type f -iname '*.zip' -print
             exit 1
           fi
 
@@ -96,10 +98,7 @@ jobs:
             exit 1
           fi
 
-          echo "================================"
           echo "ViralMovie AI UNPACK OK"
-          echo "package.json este in root"
-          echo "================================"
 
       - name: Commit and push
         shell: bash
@@ -111,4 +110,9 @@ jobs:
 
           git add -A
 
-          if
+          if git diff --cached --quiet; then
+            echo "Nu exista modificari."
+          else
+            git commit -m "AUTO UNPACK ViralMovie AI"
+            git push
+          fi
