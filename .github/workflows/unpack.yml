@@ -1,10 +1,10 @@
-name: ViralMovie AI - UNPACK
+name: ViralMovie AI AUTO UNPACK
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "ViralMovie-AI-V4-FIXED(5)-renamed.zip"
+      - "*.zip"
 
 permissions:
   contents: write
@@ -14,75 +14,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download repository
+      - name: Checkout
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
-      - name: Check ZIP
-        run: |
-          echo "Checking ZIP..."
-          ls -lh
-          test -f "ViralMovie-AI-V4-FIXED(5)-renamed.zip"
-
-      - name: Unpack ViralMovie
+      - name: Find and unpack ZIP
+        shell: bash
         run: |
           set -e
 
-          ZIP="ViralMovie-AI-V4-FIXED(5)-renamed.zip"
+          echo "ZIP-uri găsite:"
+          find . -maxdepth 1 -type f -iname "*.zip" -print
+
+          ZIP=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "❌ NU AM GĂSIT NICIUN ZIP"
+            exit 1
+          fi
+
+          echo "✅ Folosesc:"
+          echo "$ZIP"
 
           rm -rf /tmp/viralmovie
           mkdir -p /tmp/viralmovie
 
-          echo "Unpacking $ZIP ..."
-
           unzip -o "$ZIP" -d /tmp/viralmovie
 
-          echo "ZIP content:"
-          find /tmp/viralmovie -maxdepth 3 -type f | sort
+          PACKAGE=$(find /tmp/viralmovie -type f -name "package.json" | head -n 1)
 
-      - name: Copy project to root
-        run: |
-          set -e
-
-          if [ ! -f "/tmp/viralmovie/package.json" ]; then
-            echo "package.json not at root. Searching..."
-
-            PACKAGE=$(find /tmp/viralmovie -type f -name "package.json" | head -n 1)
-
-            if [ -z "$PACKAGE" ]; then
-              echo "ERROR: package.json not found."
-              exit 1
-            fi
-
-            PROJECT_DIR=$(dirname "$PACKAGE")
-          else
-            PROJECT_DIR="/tmp/viralmovie"
+          if [ -z "$PACKAGE" ]; then
+            echo "❌ package.json nu există în ZIP"
+            find /tmp/viralmovie -maxdepth 4 -type f
+            exit 1
           fi
 
-          echo "Project directory:"
-          echo "$PROJECT_DIR"
+          PROJECT=$(dirname "$PACKAGE")
 
-          # Șterge proiectul vechi
+          echo "✅ PROIECT:"
+          echo "$PROJECT"
+
+          # Curățăm root-ul, păstrăm GitHub Actions
           find . -mindepth 1 -maxdepth 1 \
             ! -name ".git" \
             ! -name ".github" \
-            ! -name "ViralMovie-AI-V4-FIXED(5)-renamed.zip" \
+            ! -name "*.zip" \
             -exec rm -rf {} +
 
-          # Copiază noul proiect
-          cp -a "$PROJECT_DIR"/. .
+          # Punem proiectul la root
+          cp -a "$PROJECT"/. .
 
-          # Șterge ZIP-ul după instalare
-          rm -f "ViralMovie-AI-V4-FIXED(5)-renamed.zip"
+          # Ștergem ZIP-ul folosit
+          rm -f "$ZIP"
 
-          echo "DONE!"
-          echo "Root files:"
-          ls -lah
+          echo "=============================="
+          echo "✅ UNPACK FINALIZAT"
+          echo "=============================="
 
           test -f package.json
+          echo "✅ package.json OK"
 
-      - name: Commit project
+      - name: Commit and Push
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -90,8 +82,8 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "No changes."
+            echo "Nicio modificare."
           else
-            git commit -m "Unpack ViralMovie AI"
+            git commit -m "Auto unpack ViralMovie AI"
             git push
           fi
