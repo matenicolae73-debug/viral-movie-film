@@ -57,13 +57,6 @@ function srtTime(seconds: number) {
   )}`;
 }
 
-/**
- * Converts FFmpeg FileData into a Blob safely.
- *
- * FFmpeg can return Uint8Array backed by ArrayBufferLike,
- * while newer TypeScript DOM definitions require a real
- * ArrayBuffer for BlobPart.
- */
 function ffmpegFileToBlob(
   data: unknown,
   type: string
@@ -74,12 +67,12 @@ function ffmpegFileToBlob(
 
   if (data instanceof Uint8Array) {
     const copy = new Uint8Array(data.byteLength);
-
     copy.set(data);
 
-    const buffer = copy.buffer as ArrayBuffer;
-
-    return new Blob([buffer], { type });
+    return new Blob(
+      [copy.buffer as ArrayBuffer],
+      { type }
+    );
   }
 
   throw new Error(
@@ -177,4 +170,186 @@ export async function renderFilm(
         filter,
         "-map",
         `[${last}]`,
-       
+        "-an",
+        "-movflags",
+        "+faststart",
+        "movie-video.mp4",
+      ]);
+
+      await ff.exec([
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        "concat.txt",
+        "-vn",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "audio.m4a",
+      ]);
+
+      await ff.exec([
+        "-i",
+        "movie-video.mp4",
+        "-i",
+        "audio.m4a",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-shortest",
+        "-movflags",
+        "+faststart",
+        "movie-final.mp4",
+      ]);
+
+      assembled = true;
+    } catch {
+      assembled = false;
+    }
+  }
+
+  if (!assembled) {
+    await ff.exec([
+      "-f",
+      "concat",
+      "-safe",
+      "0",
+      "-i",
+      "concat.txt",
+      "-c",
+      "copy",
+      "movie-final.mp4",
+    ]);
+  }
+
+  const subtitleLines: string[] = [];
+
+  let t = 0;
+
+  for (let i = 0; i < sceneUrls.length; i++) {
+    const scene = scenes[i] || {
+      id: i + 1,
+      prompt: "",
+    };
+
+    const duration = 5;
+
+    const text = scene.prompt
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 220);
+
+    subtitleLines.push(
+      `${i + 1}\n` +
+        `${srtTime(t)} --> ${srtTime(
+          t + duration - 0.15
+        )}\n` +
+        `${text}\n`
+    );
+
+    t += duration;
+  }
+
+  const srt = subtitleLines.join("\n");
+
+  await ff.writeFile(
+    "subtitles.srt",
+    new TextEncoder().encode(srt)
+  );
+
+  onProgress?.(
+    "Adding automatic subtitle track..."
+  );
+
+  await ff.exec([
+    "-i",
+    "movie-final.mp4",
+    "-i",
+    "subtitles.srt",
+    "-c",
+    "copy",
+    "-c:s",
+    "mov_text",
+    "-metadata:s:s:0",
+    "language=eng",
+    "movie-final-subtitled.mp4",
+  ]);
+
+  const trailerIndexes =
+    sceneUrls.length <= 4
+      ? sceneUrls.map((_, i) => i)
+      : Array.from(
+          new Set([
+            0,
+            Math.floor(sceneUrls.length / 3),
+            Math.floor(
+              (2 * sceneUrls.length) / 3
+            ),
+            sceneUrls.length - 1,
+          ])
+        );
+
+  const trailerList = trailerIndexes
+    .map((i) => `file '${files[i]}'`)
+    .join("\n");
+
+  await ff.writeFile(
+    "trailer.txt",
+    new TextEncoder().encode(trailerList)
+  );
+
+  onProgress?.(
+    "Cutting the automatic trailer..."
+  );
+
+  await ff.exec([
+    "-f",
+    "concat",
+    "-safe",
+    "0",
+    "-i",
+    "trailer.txt",
+    "-t",
+    "20",
+    "-c",
+    "copy",
+    "trailer.mp4",
+  ]);
+
+  const movieData = await ff.readFile(
+    "movie-final-subtitled.mp4"
+  );
+
+  const trailerData = await ff.readFile(
+    "trailer.mp4"
+  );
+
+  const subData = await ff.readFile(
+    "subtitles.srt"
+  );
+
+  const movieBlob = ffmpegFileToBlob(
+    movieData,
+    "video/mp4"
+  );
+
+  const trailerBlob = ffmpegFileToBlob(
+    trailerData,
+    "video/mp4"
+  );
+
+  const subBlob = ffmpegFileToBlob(
+    subData,
+    "application/x-subrip"
+  );
+
+  return {
+    movieUrl: URL.createObjectURL(movieBlob),
+    trailerUrl: URL.createObjectURL(trailerBlob),
+    subtitleUrl: URL.createObjectURL(subBlob),
+  };
+}
