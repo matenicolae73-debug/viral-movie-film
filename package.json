@@ -1,19 +1,17 @@
 {
   "name": "viralmovie-ai",
-  "version": "4.2.4",
+  "version": "4.2.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "next": "16.3.4",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "@ffmpeg/ffmpeg": "^0.12.15",
-    "@ffmpeg/util": "^0.12.2",
-    "@vercel/blob": "^2.0.0"
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@types/node": "^20",
