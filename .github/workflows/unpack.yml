@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Find ZIP
+      - name: Find ViralMovie ZIP
         shell: bash
         run: |
           set -e
@@ -41,11 +41,15 @@ jobs:
         shell: bash
         run: |
           set -e
+
           rm -rf extracted
           mkdir extracted
+
           unzip -o "$ZIP" -d extracted
 
-      - name: Copy project
+          echo "ZIP extracted."
+
+      - name: Install project without workflow
         shell: bash
         run: |
           set -e
@@ -64,7 +68,18 @@ jobs:
             cp -a "$ROOT"/. .
           fi
 
+          # NEVER replace the GitHub workflow
+          if [ -d "extracted/.github" ]; then
+            echo "Removing workflow files from extracted project..."
+            rm -rf .github
+          fi
+
+          # Restore the repository workflow directory from git
+          git checkout -- .github 2>/dev/null || true
+
           rm -rf extracted
+
+          echo "Project installed successfully."
 
       - name: Remove ZIP
         shell: bash
@@ -85,8 +100,5 @@ jobs:
             echo "No changes to commit."
           else
             git commit -m "Install ViralMovie AI V4"
-
-            # Push only project files.
-            # The workflow itself is not changed by this commit.
             git push
           fi
