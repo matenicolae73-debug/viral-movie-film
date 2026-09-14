@@ -73,26 +73,37 @@ export default function Home() {
   };
 
   function openStoryStep() {
-    if (!story) {
-      setStatus("Generate the Movie first to build the AI story.");
-      go(0);
+    if (story) {
+      setActive(1);
+      setStatus("AI Story opened.");
+      setTimeout(() => document.getElementById("stage-1")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
       return;
     }
-    setActive(1);
-    setStatus("AI Story opened.");
-    setTimeout(() => document.getElementById("stage-1")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    if (!idea.trim()) {
+      setStatus("Write your movie idea first, then tap Generate Movie.");
+      setActive(0);
+      setTimeout(() => document.getElementById("stage-0")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      return;
+    }
+    void generateStory();
   }
 
   function openScenesStep() {
     if (!story) {
-      setStatus("Generate the Movie first to create the storyboard.");
-      go(0);
+      if (!idea.trim()) {
+        setStatus("Write your movie idea first, then tap Generate Movie.");
+        setActive(0);
+        setTimeout(() => document.getElementById("stage-0")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+        return;
+      }
+      setStatus("Creating the AI story first. Scenes will open when it is ready.");
+      void generateStory();
       return;
     }
     setScenePage(0);
     setActive(3);
     setStatus(`${story.sceneCount} scenes are ready in your storyboard.`);
-    setTimeout(() => document.getElementById("stage-3")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    setTimeout(() => document.getElementById("stage-3")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   }
 
   async function generateProductionPack(movie: Story, movieIdea: string) {
