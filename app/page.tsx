@@ -364,8 +364,12 @@ export default function Home() {
 Example: A young astronaut lands on Mars and discovers a mysterious underground city..."/></div></div>
               <div className="create-step"><span>02</span><div><b>Choose your style</b><div className="style-grid">{["🎬 Cinematic","🎭 Drama","😂 Comedy","👽 Sci-Fi","😱 Horror","❤️ Romance","🔥 Action"].map(x => { const value=x.replace(/^\S+\s/,''); return <button type="button" key={x} className={genre===value ? "style-choice selected" : "style-choice"} onClick={()=>setGenre(value)}>{x}</button> })}</div></div></div>
               <div className="create-step"><span>03</span><div><b>Characters</b><p className="muted">Create a Character Bible with consistent visual identity, voice and personality.</p><button type="button" className="secondary" onClick={openCharacters}>✦ {characters.length ? "Edit Character Bible" : "Create Character Bible"}</button></div></div>
-              <div className="create-step"><span>04</span><div><b>Story</b><p className="muted">AI builds the plot, scenes and continuity from your idea.</p></div></div>
-              <div className="create-step"><span>05</span><div><b>Scenes</b><p className="muted">Your story becomes an editable storyboard and movie timeline.</p></div></div>
+              <button type="button" className="create-step create-step-button" onClick={() => { if (!story) { setStatus("Generate the Movie first to build the AI story."); go(0); } else { go(1); } }}>
+                <span>04</span><div><b>Story</b><p className="muted">AI builds the plot, scenes and continuity from your idea.</p></div><strong>→</strong>
+              </button>
+              <button type="button" className="create-step create-step-button" onClick={() => { if (!story) { setStatus("Generate the Movie first to create the storyboard."); go(0); } else { setScenePage(0); openStoryboard(); } }}>
+                <span>05</span><div><b>Scenes</b><p className="muted">Your story becomes an editable storyboard and movie timeline.</p></div><strong>→</strong>
+              </button>
               <div className="create-step"><span>06</span><div><b>Generate Movie</b><div className="field-row"><select aria-label="Movie format" value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select><div className="duration-pills compact">{durations.map(x=><button type="button" key={x} className={minutes===x?"selected":""} onClick={()=>setMinutes(x)}>{x===60?"1h":`${x}m`}</button>)}</div></div></div></div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}><button type="button" className="generate" onClick={generateStory}>✦ Generate Movie</button><button type="button" className="secondary" onClick={generateTestFilm}>🧪 Quick Test</button></div><div className="status-line">{status}</div>
             </section>
