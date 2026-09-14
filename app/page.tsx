@@ -59,15 +59,41 @@ export default function Home() {
   }, []);
 
   const go = (index: number) => {
-    setActive(index);
-    setStatus(index === 0 ? "Start with your movie idea." : `${steps[index][0]} section opened.`);
+    const safeIndex = Math.max(0, Math.min(index, steps.length - 1));
+    setActive(safeIndex);
+    setStatus(safeIndex === 0 ? "Start with your movie idea." : `${steps[safeIndex][0]} section opened.`);
     setTimeout(() => {
-      const el = document.getElementById(`stage-${index}`);
-      if (!el) return;
-      const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - 82);
-      window.scrollTo({ top, behavior: "smooth" });
-    }, 60);
+      try {
+        const el = document.getElementById(`stage-${safeIndex}`);
+        if (!el) return;
+        const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - 82);
+        window.scrollTo({ top, behavior: "smooth" });
+      } catch {}
+    }, 80);
   };
+
+  function openStoryStep() {
+    if (!story) {
+      setStatus("Generate the Movie first to build the AI story.");
+      go(0);
+      return;
+    }
+    setActive(1);
+    setStatus("AI Story opened.");
+    setTimeout(() => document.getElementById("stage-1")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function openScenesStep() {
+    if (!story) {
+      setStatus("Generate the Movie first to create the storyboard.");
+      go(0);
+      return;
+    }
+    setScenePage(0);
+    setActive(3);
+    setStatus(`${story.sceneCount} scenes are ready in your storyboard.`);
+    setTimeout(() => document.getElementById("stage-3")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
 
   async function generateProductionPack(movie: Story, movieIdea: string) {
     setProductionMessage("Creating AI poster and trailer automatically...");
@@ -364,10 +390,10 @@ export default function Home() {
 Example: A young astronaut lands on Mars and discovers a mysterious underground city..."/></div></div>
               <div className="create-step"><span>02</span><div><b>Choose your style</b><div className="style-grid">{["🎬 Cinematic","🎭 Drama","😂 Comedy","👽 Sci-Fi","😱 Horror","❤️ Romance","🔥 Action"].map(x => { const value=x.replace(/^\S+\s/,''); return <button type="button" key={x} className={genre===value ? "style-choice selected" : "style-choice"} onClick={()=>setGenre(value)}>{x}</button> })}</div></div></div>
               <div className="create-step"><span>03</span><div><b>Characters</b><p className="muted">Create a Character Bible with consistent visual identity, voice and personality.</p><button type="button" className="secondary" onClick={openCharacters}>✦ {characters.length ? "Edit Character Bible" : "Create Character Bible"}</button></div></div>
-              <button type="button" className="create-step create-step-button" onClick={() => { if (!story) { setStatus("Generate the Movie first to build the AI story."); go(0); } else { go(1); } }}>
+              <button type="button" className="create-step create-step-button" onClick={openStoryStep}>
                 <span>04</span><div><b>Story</b><p className="muted">AI builds the plot, scenes and continuity from your idea.</p></div><strong>→</strong>
               </button>
-              <button type="button" className="create-step create-step-button" onClick={() => { if (!story) { setStatus("Generate the Movie first to create the storyboard."); go(0); } else { setScenePage(0); openStoryboard(); } }}>
+              <button type="button" className="create-step create-step-button" onClick={openScenesStep}>
                 <span>05</span><div><b>Scenes</b><p className="muted">Your story becomes an editable storyboard and movie timeline.</p></div><strong>→</strong>
               </button>
               <div className="create-step"><span>06</span><div><b>Generate Movie</b><div className="field-row"><select aria-label="Movie format" value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select><div className="duration-pills compact">{durations.map(x=><button type="button" key={x} className={minutes===x?"selected":""} onClick={()=>setMinutes(x)}>{x===60?"1h":`${x}m`}</button>)}</div></div></div></div>
