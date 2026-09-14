@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 const durations = [1, 5, 10, 20, 30, 45, 60];
 const steps = [
@@ -42,6 +44,12 @@ export default function Home() {
   const [trailerDuration, setTrailerDuration] = useState(50);
   const [subtitleText, setSubtitleText] = useState("");
   const [productionMessage, setProductionMessage] = useState("Production extras are ready to be generated automatically.");
+  const [directorPlan, setDirectorPlan] = useState<any[]>([]);
+  const [directorState, setDirectorState] = useState("READY");
+  const [directorMessage, setDirectorMessage] = useState("AI Director is ready to analyze your movie.");
+  const [finalMovieUrl, setFinalMovieUrl] = useState("");
+  const [editingState, setEditingState] = useState("READY");
+  const [editingMessage, setEditingMessage] = useState("Generate at least 2 scenes, then use Auto Edit.");
 
   useEffect(() => {
     fetch("/api/video/health", { cache: "no-store" })
@@ -349,11 +357,65 @@ export default function Home() {
 
 
 
+  async function runAIDirector() {
+    if (!story) { setDirectorMessage("Create the movie story first."); go(1); return; }
+    setDirectorState("ANALYZING"); setDirectorMessage("AI Director is analyzing story beats, camera language, lighting, pacing and continuity...");
+    try {
+      const r = await fetch("/api/director", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: story.title, logline: story.logline, genre, scenes: story.scenes, characters }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d?.ok) throw new Error(d?.error || "AI Director could not analyze the movie.");
+      setDirectorPlan(Array.isArray(d.plan) ? d.plan : []);
+      setDirectorState("READY");
+      setDirectorMessage(`AI Director created ${d.plan?.length || 0} cinematic scene directions.`);
+      setActive(6);
+      setTimeout(() => document.getElementById("stage-6")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+    } catch (e) {
+      setDirectorState("FAILED"); setDirectorMessage(e instanceof Error ? e.message : "AI Director failed.");
+    }
+  }
+
+  async function autoEditMovie() {
+    const scenes = (story?.scenes || []).filter(s => videoUrls[s.id]);
+    if (scenes.length < 2) { setEditingMessage("Generate at least 2 completed scenes before Auto Edit."); setEditingState("WAITING"); return; }
+    setEditingState("LOADING"); setEditingMessage(`Preparing ${scenes.length} scenes for automatic editing...`);
+    try {
+      const ffmpeg = new FFmpeg();
+      const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm")
+      });
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        setEditingMessage(`Auto Edit: importing Scene ${scene.id} (${i + 1}/${scenes.length})...`);
+        const proxy = `/api/video/download?url=${encodeURIComponent(videoUrls[scene.id])}`;
+        await ffmpeg.writeFile(`scene-${i}.mp4`, await fetchFile(proxy));
+      }
+      const list = scenes.map((_, i) => `file 'scene-${i}.mp4'`).join("\n");
+      await ffmpeg.writeFile("concat.txt", list);
+      setEditingState("RENDERING"); setEditingMessage("AI Director timeline is rendering the final MP4...");
+      await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-movflags", "+faststart", "movie-final.mp4"]);
+      const data = await ffmpeg.readFile("movie-final.mp4");
+      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as ArrayBuffer);
+      const blob = new Blob([bytes], { type: "video/mp4" });
+      const url = URL.createObjectURL(blob);
+      setFinalMovieUrl(url);
+      setEditingState("READY"); setEditingMessage(`Final MP4 ready: ${scenes.length} scenes edited into one movie.`);
+    } catch (e) {
+      setEditingState("FAILED"); setEditingMessage(e instanceof Error ? `Auto Edit failed: ${e.message}` : "Auto Edit failed in this browser. Try fewer scenes or use a modern browser.");
+    }
+  }
+
+  function downloadFinalMovie() {
+    if (!finalMovieUrl) { setEditingMessage("Create the final MP4 with Auto Edit first."); return; }
+    const a = document.createElement("a"); a.href = finalMovieUrl; a.download = `${(story?.title || "ViralMovie").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase() || "viralmovie"}-final.mp4`; a.click();
+  }
+
   async function publishMovie() {
     if (!selectedScene || !readyUrl) { setPublishMessage("Generate a finished scene first."); return; }
     const title = story?.title || `ViralMovie Scene ${selectedScene.id}`;
     const description = story?.logline || selectedScene.prompt;
-    const r = await fetch("/api/admin/publish", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, description, prompt: selectedScene.prompt, videoUrl: readyUrl }) });
+    const r = await fetch("/api/admin/publish", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, description, prompt: selectedScene.prompt, videoUrl: readyUrl, posterUrl, trailerUrl }) });
     const d = await r.json().catch(() => ({}));
     setPublishMessage(r.ok ? `Published: ${d.movie?.title || title}` : (d.error || "Publish failed."));
   }
@@ -428,7 +490,7 @@ Example: A young astronaut lands on Mars and discovers a mysterious underground 
 
             <section className="card production-pack" id="production-pack"><div className="section-head"><h2>🎬 AI Production Pack</h2><span>{trailerState}</span></div><p className="muted">When a movie is created, ViralMovie automatically prepares a cinematic poster, trailer teaser and subtitle track as scenes are generated.</p><div className="production-grid"><div className="production-item"><b>🖼️ Poster</b>{posterUrl ? <img src={posterUrl} alt="AI movie poster"/> : <span>Generating automatically…</span>}</div><div className="production-item"><b>🎞️ Trailer</b><div className="trailer-options">{[15,30,50,60].map(x=><button type="button" key={x} className={trailerDuration===x?"selected":""} onClick={()=>setTrailerDuration(x)}>{x}s</button>)}</div>{trailerUrl ? <video controls playsInline src={trailerUrl}/> : <span>{trailerState === "PROCESSING" ? `Processing your ${trailerDuration}s trailer in the background…` : `AI trailer ready to generate automatically · ${trailerDuration}s`}</span>}<button type="button" className="secondary" onClick={()=>{ if (!story) { setStatus("Create the movie story first."); return; } void generateProductionPack(story, idea, trailerDuration); }}>🎬 Generate Automatically</button></div><div className="production-item"><b>💬 Subtitles</b><span>{subtitleText ? `${subtitleText.split("\\n").filter(Boolean).length} subtitle cues ready.` : "Generated automatically after each completed scene."}</span>{subtitleText && <button type="button" className="secondary" onClick={() => { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([subtitleText+"\\n"],{type:"text/plain"})); a.download="viralmovie-subtitles.srt"; a.click(); }}>⇩ Download .SRT</button>}</div></div><div className="info-box">{productionMessage}</div></section>
 
-            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ Movie Timeline</h2><span>MY PROJECT</span></div><div className="project-map"><span>🎬 Film</span><span>🎞 Trailer</span><span>🔊 Audio</span><span>💬 Subtitles</span><span>🖼 Poster</span><span>🌐 Publish</span></div><div className="timeline-label">MOVIE TIMELINE</div><div className="timeline"><div className="timeline-track">{(story?.scenes || []).slice(0,24).map(scene=><button key={scene.id} type="button" className={selectedScene?.id===scene.id?"timeline-scene selected":"timeline-scene"} onClick={()=>{selectScene(scene);go(4)}}>Scene {String(scene.id).padStart(2,"0")}</button>)}</div></div><div className="movie-tile"><strong>{minutes===60?"1h":`${minutes} min`}</strong><span>{story?.sceneCount || 0} scenes planned • {Object.keys(generated).length} generated</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">Your movie is organized as a real production timeline. Generate, review and regenerate scenes before the final render.</p></section>
+            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ Movie Timeline</h2><span>{editingState === "READY" ? "READY" : editingState}</span></div><div className="director-tools"><div className="director-card"><div className="director-title"><span>🤖</span><div><b>AI DIRECTOR</b><small>Shot design • pacing • lighting • camera • continuity</small></div></div><button type="button" className="secondary" onClick={runAIDirector}>{directorState === "ANALYZING" ? "⏳ AI Director analyzing..." : "🤖 AI DIRECTOR"}</button><p>{directorMessage}</p>{directorPlan.length > 0 && <div className="director-plan">{directorPlan.slice(0,12).map((x:any)=><div key={x.sceneId}><b>Scene {x.sceneId}</b><span>{x.shot} · {x.camera} · {x.lighting} · {x.pacing}</span></div>)}</div>}</div><div className="director-card auto-edit-card"><div className="director-title"><span>✂️</span><div><b>AUTOMATIC EDITING</b><small>Scenes → transitions → final MP4</small></div></div><button type="button" className="generate" onClick={autoEditMovie} disabled={editingState === "LOADING" || editingState === "RENDERING"}>{editingState === "LOADING" ? "⏳ Loading editor..." : editingState === "RENDERING" ? "🎬 Rendering final MP4..." : "✂️ AUTO EDIT"}</button><p>{editingMessage}</p>{finalMovieUrl && <><video className="final-movie-player" controls playsInline src={finalMovieUrl}/><button type="button" className="download" onClick={downloadFinalMovie}>⇩ Download Final MP4</button></>}</div></div><div className="project-map"><span>🎬 Film</span><span>🎞 Trailer</span><span>🔊 Audio</span><span>💬 Subtitles</span><span>🖼 Poster</span><span>🌐 Publish</span></div><div className="timeline-label">MOVIE TIMELINE</div><div className="timeline"><div className="timeline-track">{(story?.scenes || []).slice(0,24).map(scene=><button key={scene.id} type="button" className={selectedScene?.id===scene.id?"timeline-scene selected":"timeline-scene"} onClick={()=>{selectScene(scene);go(4)}}>Scene {String(scene.id).padStart(2,"0")}</button>)}</div></div><div className="movie-tile"><strong>{minutes===60?"1h":`${minutes} min`}</strong><span>{story?.sceneCount || 0} scenes planned • {Object.keys(generated).length} generated • {Object.keys(videoUrls).length} ready</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">AI Director creates the shot plan. Auto Edit combines every completed scene into one MP4 directly in the browser. For long films, edit in batches on a modern phone or desktop.</p></section>
 
             <section className="card" id="stage-7"><div className="section-head"><h2>⇩ Export</h2><span>SHARE</span></div><button className="generate" onClick={exportProject}>Export Project</button></section>
           </div>

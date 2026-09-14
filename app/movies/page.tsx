@@ -2,7 +2,7 @@
 import "./theme.css";
 import { useEffect, useState } from "react";
 
-type Movie={slug:string;title:string;description:string;videoUrl:string;publishedAt:string;aiGenerated?:boolean};
+type Movie={slug:string;title:string;description:string;videoUrl:string;publishedAt:string;aiGenerated?:boolean;likes?:number;views?:number;posterUrl?:string};
 
 export default function Movies(){
   const [movies,setMovies]=useState<Movie[]>([]);
@@ -52,13 +52,14 @@ export default function Movies(){
       :<div className="catalog-grid">
         {movies.map(m=><article className="catalog-card" key={m.slug}>
           <div className="poster-wrap">
-            <video muted playsInline preload="metadata" src={m.videoUrl}/>
+            <video muted playsInline preload="metadata" poster={m.posterUrl||undefined} src={m.videoUrl}/>
             <div className="poster-shade" />
             <div className="poster-play">▶</div>
             <span className="ai-badge">AI ORIGINAL</span>
           </div>
           <div className="catalog-body">
             <div className="movie-meta">AI MOVIE <span>•</span> ONLINE</div>
+            <div className="catalog-stats"><span>👁️ {(m.views||0).toLocaleString()} views</span><span>❤️ {(m.likes||0).toLocaleString()} likes</span></div>
             <h3>{m.title}</h3>
             <p>{m.description}</p>
             <a href={`/movie/${m.slug}`} className="watch">▶ Watch movie</a>
