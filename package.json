@@ -1,12 +1,11 @@
 {
   "name": "viralmovie-ai",
-  "version": "4.2.3",
+  "version": "4.2.4",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
     "next": "16.3.4",

@@ -74,3 +74,6 @@ Fixed the fal.ai queue submission payload. The queue API expects the model input
 - Set `OWNER_PUBLISH_TOKEN` in Vercel. Keep it server-side.
 - Set `KV_REST_API_URL` and `KV_REST_API_TOKEN` (or the equivalent `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) for persistent Movies storage.
 - fal's API key remains server-side in `FAL_KEY`.
+## Technical cleanup
+- Generated TypeScript cache files are excluded from the project archive.
+- Runtime secrets remain server-side in Vercel Environment Variables.
