@@ -9,6 +9,9 @@ export async function POST(request: Request) {
   const cookie = request.headers.get("cookie") || "";
   if (!expected || !cookie.includes(`vm_owner=${encodeURIComponent(expected)}`)) return NextResponse.json({ ok: false, error: "Owner access required." }, { status: 401 });
   try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
+      return NextResponse.json({ ok: false, error: "Vercel Blob storage is not configured. Add BLOB_READ_WRITE_TOKEN in Vercel Environment Variables." }, { status: 503 });
+    }
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return NextResponse.json({ ok: false, error: "MP4 file is required." }, { status: 400 });
