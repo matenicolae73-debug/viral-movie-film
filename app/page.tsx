@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 const durations = [1, 5, 10, 20, 30, 45, 60];
 const steps = [
   ["IDEA", "Your concept"], ["AI STORY", "Plot, scenes and continuity"],
   ["CHARACTERS", "Consistent characters"], ["STORYBOARD", "Automatic scene breakdown"],
-  ["AI VIDEO", "Generate cinematic scenes"], ["AUDIO", "Dialogue, narration, SFX and music"],
-  ["MOVIE", "Build the final timeline"], ["EXPORT", "Download and share"]
+  ["AI DIRECTOR", "Shots, camera, light and continuity"], ["AI VIDEO", "Generate cinematic scenes"],
+  ["AUTO EDIT", "Assemble the final movie"], ["AUDIO", "Dialogue, narration, SFX and music"],
+  ["PRODUCTION", "Poster, trailer and subtitles"], ["WATCH / EXPORT", "Final movie, download and share"]
 ];
 
 type Scene = { id: number; prompt: string };
@@ -44,12 +43,11 @@ export default function Home() {
   const [trailerDuration, setTrailerDuration] = useState(50);
   const [subtitleText, setSubtitleText] = useState("");
   const [productionMessage, setProductionMessage] = useState("Production extras are ready to be generated automatically.");
-  const [directorPlan, setDirectorPlan] = useState<any[]>([]);
-  const [directorState, setDirectorState] = useState("READY");
-  const [directorMessage, setDirectorMessage] = useState("AI Director is ready to analyze your movie.");
+  const [directorPlan, setDirectorPlan] = useState<Record<number, { shot:string; camera:string; lighting:string; pace:string; transition:string; audio:string }>>({});
+  const [directorBusy, setDirectorBusy] = useState(false);
   const [finalMovieUrl, setFinalMovieUrl] = useState("");
-  const [editingState, setEditingState] = useState("READY");
-  const [editingMessage, setEditingMessage] = useState("Generate at least 2 scenes, then use Auto Edit.");
+  const [finalMovieBusy, setFinalMovieBusy] = useState(false);
+  const [finalMovieMessage, setFinalMovieMessage] = useState("Generate at least 2 scenes, then run Auto Edit.");
 
   useEffect(() => {
     fetch("/api/video/health", { cache: "no-store" })
@@ -147,6 +145,62 @@ export default function Home() {
     }
   }
 
+  async function runAIDirector() {
+    if (!story) { setStatus("Generate the Movie Plan first, then run AI Director."); return; }
+    setDirectorBusy(true); setStatus("AI Director is analyzing your story, scenes and character continuity...");
+    try {
+      const r = await fetch("/api/director", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ story, genre, audio }) });
+      const d = await r.json().catch(()=>({}));
+      if (!r.ok || !d?.ok) throw new Error(d?.error || "AI Director could not analyze the movie.");
+      setDirectorPlan(d.plan || {});
+      setStatus(`AI Director ready: ${Object.keys(d.plan || {}).length} scene directions created.`);
+      setTimeout(() => document.getElementById("stage-4")?.scrollIntoView({behavior:"smooth",block:"start"}), 40);
+    } catch (e) { setStatus(e instanceof Error ? e.message : "AI Director failed."); }
+    finally { setDirectorBusy(false); }
+  }
+
+  async function autoEditMovie() {
+    const urls = (story?.scenes || []).map(s => videoUrls[s.id]).filter(Boolean);
+    if (urls.length < 2) { setFinalMovieMessage("Generate at least 2 finished scenes before Auto Edit."); return; }
+    setFinalMovieBusy(true); setFinalMovieMessage(`Preparing ${urls.length} scenes for automatic editing...`); setStatus("Auto Edit is assembling the movie. Keep this page open.");
+    try {
+      const { FFmpeg } = await import("@ffmpeg/ffmpeg");
+      const { fetchFile, toBlobURL } = await import("@ffmpeg/util");
+      const ffmpeg = new FFmpeg();
+      const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+      await ffmpeg.load({ coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"), wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm") });
+      const names:string[] = [];
+      for (let i=0;i<urls.length;i++) {
+        setFinalMovieMessage(`Downloading scene ${i+1} of ${urls.length}...`);
+        const r = await fetch(`/api/video/download?url=${encodeURIComponent(urls[i])}`);
+        if (!r.ok) throw new Error(`Could not download Scene ${i+1} for editing.`);
+        const blob = await r.blob();
+        const name = `scene-${String(i+1).padStart(4,"0")}.mp4`;
+        await ffmpeg.writeFile(name, await fetchFile(blob)); names.push(name);
+      }
+      const list = names.map(n => `file '${n}'`).join("\n");
+      await ffmpeg.writeFile("concat.txt", list);
+      setFinalMovieMessage("Rendering the final MP4 with continuous picture and synchronized scene audio...");
+      await ffmpeg.exec(["-f","concat","-safe","0","-i","concat.txt","-c:v","libx264","-preset","veryfast","-crf","23","-c:a","aac","-b:a","128k","-movflags","+faststart","viralmovie-final.mp4"]);
+      const data = await ffmpeg.readFile("viralmovie-final.mp4");
+      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as any);
+      const blob = new Blob([bytes], {type:"video/mp4"});
+      if (finalMovieUrl) URL.revokeObjectURL(finalMovieUrl);
+      const url = URL.createObjectURL(blob);
+      setFinalMovieUrl(url);
+      setFinalMovieMessage(`Final movie ready: ${urls.length} scenes assembled into one MP4.`);
+      setStatus("Auto Edit complete. Your final movie is ready to watch and download.");
+    } catch (e) {
+      setFinalMovieMessage(e instanceof Error ? e.message : "Automatic editing failed. Try with 2–3 scenes first.");
+      setStatus("Auto Edit could not finish. Try a smaller test with 2–3 scenes.");
+    } finally { setFinalMovieBusy(false); }
+  }
+
+  function downloadFinalMovie() {
+    if (!finalMovieUrl) return;
+    const a=document.createElement("a"); a.href=finalMovieUrl; a.download=`${(story?.title || "viralmovie-final").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase() || "viralmovie-final"}.mp4`; a.click();
+  }
+
   async function generateSubtitlesForScene(scene: Scene, url: string) {
     try {
       const r = await fetch("/api/subtitles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ audio_url: url, start_seconds: (scene.id - 1) * 5 }) });
@@ -172,7 +226,7 @@ export default function Home() {
       setSelectedScene(firstScene);
       setActive(4);
       setStatus("Test Film ready: generating Scene 1 of 12 with AI video + synchronized audio...");
-      setTimeout(() => document.getElementById("stage-4")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      setTimeout(() => document.getElementById("stage-5")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
       void generateScene(firstScene);
     } catch (e: unknown) {
       setStatus(e instanceof Error ? e.message : "Test Film generation failed.");
@@ -218,12 +272,12 @@ export default function Home() {
   }
 
   function openVideo() {
-    setActive(4);
+    setActive(5);
     setStatus(story
       ? (selectedScene ? `Scene ${selectedScene.id} is selected for video generation.` : "Select a storyboard scene to generate video.")
       : "Generate the Movie Plan first, then select a storyboard scene for AI Video.");
     setTimeout(() => {
-      const el = document.getElementById("stage-4");
+      const el = document.getElementById("stage-5");
       if (!el) return;
       window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - 82), behavior: "smooth" });
     }, 60);
@@ -236,18 +290,18 @@ export default function Home() {
 
   function selectScene(scene: Scene) {
     setSelectedScene(scene);
-    setActive(4);
+    setActive(5);
     setStatus(`Scene ${scene.id} selected. You can generate the video now.`);
-    setTimeout(() => document.getElementById("stage-4")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+    setTimeout(() => document.getElementById("stage-5")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
   }
 
   async function generateScene(scene: Scene) {
     if (generatingScene === scene.id) return;
     if (!adultConfirmed) { setStatus("Confirm that you are 18+ before generating a video."); return; }
-    setSelectedScene(scene); setActive(4); setGeneratingScene(scene.id);
+    setSelectedScene(scene); setActive(5); setGeneratingScene(scene.id);
     setVideoError(x => ({ ...x, [scene.id]: "" }));
     setVideoState(x => ({ ...x, [scene.id]: "SUBMITTING" }));
-    setStatus(`Scene ${scene.id}: connecting to Vidu Q3 Turbo...`);
+    setStatus(`Scene ${scene.id}: connecting to the AI video engine...`);
     try {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 30000);
@@ -269,13 +323,13 @@ export default function Home() {
       const rid = d.requestId || d.data?.request_id || d.data?.requestId;
       if (!rid) {
         setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
-        setVideoError(x => ({ ...x, [scene.id]: "Vidu accepted the request but returned no request ID. Try again." }));
-        setStatus("Vidu accepted the request but returned no request ID. Try again.");
+        setVideoError(x => ({ ...x, [scene.id]: "The AI video engine accepted the request but returned no request ID. Try again." }));
+        setStatus("The AI video engine accepted the request but returned no request ID. Try again.");
         return;
       }
       setGenerated(x => ({ ...x, [scene.id]: true }));
       setVideoState(x => ({ ...x, [scene.id]: "IN_QUEUE" }));
-      setStatus(`Scene ${scene.id}: IN_QUEUE — Vidu is generating your 5-second AI video with synchronized audio...`);
+      setStatus(`Scene ${scene.id}: IN_QUEUE — AI is generating your 5-second video with synchronized audio...`);
       await pollScene(scene.id, rid);
     } catch (e: unknown) {
       setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
@@ -318,11 +372,11 @@ export default function Home() {
           }
           const url = rd?.data?.video?.url || rd?.data?.data?.video?.url || rd?.video?.url;
           if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); setStatus(`Scene ${sceneId} is READY — Preview, Download and Share.`); }
-          else { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus("Generation finished, but Vidu returned no video URL."); }
+          else { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus("Generation finished, but no video URL was returned."); }
           return;
         }
         if (["FAILED", "ERROR", "CANCELLED"].includes(st.toUpperCase())) {
-          const detail = d?.data?.error || d?.data?.detail || d?.data?.message || d?.error || "Vidu reported a generation failure.";
+          const detail = d?.data?.error || d?.data?.detail || d?.data?.message || d?.error || "The AI video engine reported a generation failure.";
           const errorType = d?.data?.error_type ? ` (${d.data.error_type})` : "";
           const logs = Array.isArray(d?.data?.logs) ? d.data.logs.map((x: any) => x?.message).filter(Boolean).slice(-2).join(" | ") : "";
           setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
@@ -357,67 +411,26 @@ export default function Home() {
 
 
 
-  async function runAIDirector() {
-    if (!story) { setDirectorMessage("Create the movie story first."); go(1); return; }
-    setDirectorState("ANALYZING"); setDirectorMessage("AI Director is analyzing story beats, camera language, lighting, pacing and continuity...");
-    try {
-      const r = await fetch("/api/director", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: story.title, logline: story.logline, genre, scenes: story.scenes, characters }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || !d?.ok) throw new Error(d?.error || "AI Director could not analyze the movie.");
-      setDirectorPlan(Array.isArray(d.plan) ? d.plan : []);
-      setDirectorState("READY");
-      setDirectorMessage(`AI Director created ${d.plan?.length || 0} cinematic scene directions.`);
-      setActive(6);
-      setTimeout(() => document.getElementById("stage-6")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
-    } catch (e) {
-      setDirectorState("FAILED"); setDirectorMessage(e instanceof Error ? e.message : "AI Director failed.");
-    }
-  }
-
-  async function autoEditMovie() {
-    const scenes = (story?.scenes || []).filter(s => videoUrls[s.id]);
-    if (scenes.length < 2) { setEditingMessage("Generate at least 2 completed scenes before Auto Edit."); setEditingState("WAITING"); return; }
-    setEditingState("LOADING"); setEditingMessage(`Preparing ${scenes.length} scenes for automatic editing...`);
-    try {
-      const ffmpeg = new FFmpeg();
-      const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm")
-      });
-      for (let i = 0; i < scenes.length; i++) {
-        const scene = scenes[i];
-        setEditingMessage(`Auto Edit: importing Scene ${scene.id} (${i + 1}/${scenes.length})...`);
-        const proxy = `/api/video/download?url=${encodeURIComponent(videoUrls[scene.id])}`;
-        await ffmpeg.writeFile(`scene-${i}.mp4`, await fetchFile(proxy));
-      }
-      const list = scenes.map((_, i) => `file 'scene-${i}.mp4'`).join("\n");
-      await ffmpeg.writeFile("concat.txt", list);
-      setEditingState("RENDERING"); setEditingMessage("AI Director timeline is rendering the final MP4...");
-      await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-movflags", "+faststart", "movie-final.mp4"]);
-      const data = await ffmpeg.readFile("movie-final.mp4");
-      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as ArrayBuffer);
-      const blob = new Blob([bytes], { type: "video/mp4" });
-      const url = URL.createObjectURL(blob);
-      setFinalMovieUrl(url);
-      setEditingState("READY"); setEditingMessage(`Final MP4 ready: ${scenes.length} scenes edited into one movie.`);
-    } catch (e) {
-      setEditingState("FAILED"); setEditingMessage(e instanceof Error ? `Auto Edit failed: ${e.message}` : "Auto Edit failed in this browser. Try fewer scenes or use a modern browser.");
-    }
-  }
-
-  function downloadFinalMovie() {
-    if (!finalMovieUrl) { setEditingMessage("Create the final MP4 with Auto Edit first."); return; }
-    const a = document.createElement("a"); a.href = finalMovieUrl; a.download = `${(story?.title || "ViralMovie").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase() || "viralmovie"}-final.mp4`; a.click();
-  }
-
   async function publishMovie() {
-    if (!selectedScene || !readyUrl) { setPublishMessage("Generate a finished scene first."); return; }
-    const title = story?.title || `ViralMovie Scene ${selectedScene.id}`;
-    const description = story?.logline || selectedScene.prompt;
-    const r = await fetch("/api/admin/publish", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, description, prompt: selectedScene.prompt, videoUrl: readyUrl, posterUrl, trailerUrl }) });
-    const d = await r.json().catch(() => ({}));
-    setPublishMessage(r.ok ? `Published: ${d.movie?.title || title}` : (d.error || "Publish failed."));
+    if (!selectedScene && !finalMovieUrl) { setPublishMessage("Create and finish the movie first."); return; }
+    const title = story?.title || `ViralMovie ${selectedScene ? `Scene ${selectedScene.id}` : "Movie"}`;
+    const description = story?.logline || selectedScene?.prompt || "AI movie created with ViralMovie.";
+    setPublishMessage(finalMovieUrl ? "Uploading the final MP4 to the public movie library..." : "Publishing the finished scene...");
+    try {
+      let publishUrl = finalMovieUrl || readyUrl;
+      if (finalMovieUrl) {
+        const blob = await fetch(finalMovieUrl).then(r => r.blob());
+        const form = new FormData();
+        form.append("file", new File([blob], `${title.replace(/[^a-z0-9]+/gi,"-") || "viralmovie"}.mp4`, { type:"video/mp4" }));
+        const upload = await fetch("/api/movies/upload", { method:"POST", body:form });
+        const ud = await upload.json().catch(()=>({}));
+        if (!upload.ok || !ud?.ok) throw new Error(ud?.error || "Final movie upload failed. Configure Vercel Blob storage to publish the assembled MP4.");
+        publishUrl = ud.url;
+      }
+      const r = await fetch("/api/admin/publish", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, description, prompt: selectedScene?.prompt || idea, videoUrl: publishUrl, posterUrl, trailerUrl }) });
+      const d = await r.json().catch(() => ({}));
+      setPublishMessage(r.ok ? `Published: ${d.movie?.title || title}` : (d.error || "Publish failed."));
+    } catch (e) { setPublishMessage(e instanceof Error ? e.message : "Publish failed."); }
   }
 
   function downloadVideo(sceneId: number) {
@@ -470,7 +483,7 @@ Example: A young astronaut lands on Mars and discovers a mysterious underground 
                 <span>05</span><div><b>Scenes</b><p className="muted">Your story becomes an editable storyboard and movie timeline.</p></div><strong>→</strong>
               </button>
               <div className="create-step"><span>06</span><div><b>Generate Movie</b><div className="field-row"><select aria-label="Movie format" value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select><div className="duration-pills compact">{durations.map(x=><button type="button" key={x} className={minutes===x?"selected":""} onClick={()=>setMinutes(x)}>{x===60?"1h":`${x}m`}</button>)}</div></div></div></div>
-              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}><button type="button" className="generate" onClick={generateStory}>✦ Generate Movie</button><button type="button" className="secondary" onClick={generateTestFilm}>🧪 Quick Test</button></div><div className="status-line">{status}</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}><button type="button" className="generate" onClick={generateStory}>✦ Generate Movie</button><button type="button" className="secondary" onClick={generateTestFilm}>🧪 Quick Test</button></div><div className="quick-flow"><button type="button" onClick={()=>go(1)}>01 Story</button><button type="button" onClick={()=>go(2)}>02 Characters</button><button type="button" onClick={()=>go(3)}>03 Storyboard</button><button type="button" onClick={()=>go(4)}>04 🤖 AI Director</button><button type="button" onClick={()=>go(5)}>05 🎥 Generate Scenes</button><button type="button" onClick={()=>go(6)}>06 ✂️ Auto Edit</button><button type="button" onClick={()=>go(8)}>07 🎬 Trailer / Poster</button><button type="button" onClick={()=>go(9)}>08 ▶ Watch / Export</button></div><div className="status-line">{status}</div>
             </section>
 
             <section className="card" id="stage-1"><div className="section-head"><h2>⚡ AI Story</h2><span>{story ? "READY" : "WAITING"}</span></div>{story ? <><h3>{story.title}</h3><p className="muted">{story.logline}</p><div className="info-box">{story.sceneCount} planned scenes • {minutes * 60} seconds • 5 seconds per scene</div></> : <div className="info-box">Press Generate Movie to create the story structure.</div>}</section>
@@ -484,15 +497,19 @@ Example: A young astronaut lands on Mars and discovers a mysterious underground 
               <button type="button" className="secondary" onClick={()=>setStatus("New scene slot added to the movie plan.")}>＋ Add Scene</button><div className="scene-pagination"><button type="button" className="secondary" disabled={scenePage === 0} onClick={() => setScenePage(p => Math.max(0, p - 1))}>← Previous</button><span>Scenes {scenePage * 12 + 1}–{Math.min((scenePage + 1) * 12, story.sceneCount)} of {story.sceneCount}</span><button type="button" className="secondary" disabled={(scenePage + 1) * 12 >= story.sceneCount} onClick={() => setScenePage(p => p + 1)}>Next →</button></div>
             </> }</section>
 
-            <section className="card" id="stage-4"><div className="section-head"><h2>🎥 AI Video + Sound</h2><span>{selectedScene && videoState[selectedScene.id] ? videoState[selectedScene.id] : falConfigured === false ? "FAL OFFLINE" : "AI READY"}</span></div>{selectedScene ? <><div className="info-box"><b>Scene {selectedScene.id}</b><br/><span>{selectedScene.prompt}</span>{selectedCharacter && <><br/><small className="character-context">Character: {selectedCharacter.name} — {selectedCharacter.role}</small></>}</div><label className="safety-check"><input type="checkbox" checked={adultConfirmed} onChange={e => setAdultConfirmed(e.target.checked)} /> I confirm I am 18+ and agree not to create pornography, sexual content involving minors, non-consensual intimate imagery, realistic impersonations/deepfakes of real people, terrorism, scams, extreme gore, or other prohibited content.</label>{falConfigured === false && <div className="error-box"><b>Vidu connection is not ready.</b><br/>The video service is temporarily unavailable. Please try again in a moment.</div>}{videoError[selectedScene.id] && <div className="error-box"><b>Generation error</b><br/>{videoError[selectedScene.id]}</div>}<button type="button" className="generate" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? `⏳ Generating Scene ${selectedScene.id}...` : generated[selectedScene.id] ? "↻ Generate Again" : "✦ Generate Scene"}</button>{readyUrl && <div className="video-box"><video controls playsInline src={readyUrl}/><div className="video-actions"><button className="download" onClick={() => downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" onClick={() => previewVideo(selectedScene.id)}>◉ Preview</button></div><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">For Instagram, TikTok and YouTube, the platform may ask you to upload the downloaded MP4.</p><div className="publish-box"><h3>👑 Owner Admin · Publish</h3><p>Only the authenticated site owner can publish a finished, reviewed movie to the public Movies catalog. Publishing is blocked for everyone else.</p>{!ownerLoggedIn ? <a className="owner-login" href="/owner" style={{textDecoration:"none",display:"block",textAlign:"center"}}>👑 Open Owner Control Center</a> : <button className="publish" onClick={publishMovie}>🚀 Publish to Movies</button>}<small>{ownerLoggedIn ? publishMessage : "Owner publishing is managed separately from the public studio."}</small></div></div>}</> : <div className="info-box">Choose a scene from Storyboard first.</div>}</section>
+            <section className="card" id="stage-5"><div className="section-head"><h2>🎥 AI Video + Sound</h2><span>{selectedScene && videoState[selectedScene.id] ? videoState[selectedScene.id] : falConfigured === false ? "AI VIDEO OFFLINE" : "AI READY"}</span></div>{selectedScene ? <><div className="info-box"><b>Scene {selectedScene.id}</b><br/><span>{selectedScene.prompt}</span>{selectedCharacter && <><br/><small className="character-context">Character: {selectedCharacter.name} — {selectedCharacter.role}</small></>}</div><label className="safety-check"><input type="checkbox" checked={adultConfirmed} onChange={e => setAdultConfirmed(e.target.checked)} /> I confirm I am 18+ and agree not to create pornography, sexual content involving minors, non-consensual intimate imagery, realistic impersonations/deepfakes of real people, terrorism, scams, extreme gore, or other prohibited content.</label>{falConfigured === false && <div className="error-box"><b>AI video connection is not ready.</b><br/>The video service is temporarily unavailable. Please try again in a moment.</div>}{videoError[selectedScene.id] && <div className="error-box"><b>Generation error</b><br/>{videoError[selectedScene.id]}</div>}<button type="button" className="generate" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? `⏳ Generating Scene ${selectedScene.id}...` : generated[selectedScene.id] ? "↻ Generate Again" : "✦ Generate Scene"}</button>{readyUrl && <div className="video-box"><video controls playsInline src={readyUrl}/><div className="video-actions"><button className="download" onClick={() => downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" onClick={() => previewVideo(selectedScene.id)}>◉ Preview</button></div><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">For Instagram, TikTok and YouTube, the platform may ask you to upload the downloaded MP4.</p><div className="publish-box"><h3>👑 Owner Admin · Publish</h3><p>Only the authenticated site owner can publish a finished, reviewed movie to the public Movies catalog. Publishing is blocked for everyone else.</p>{!ownerLoggedIn ? <a className="owner-login" href="/owner" style={{textDecoration:"none",display:"block",textAlign:"center"}}>👑 Open Owner Control Center</a> : <button className="publish" onClick={publishMovie}>{finalMovieUrl ? "🚀 Publish Final Movie" : "🚀 Publish to Movies"}</button>}<small>{ownerLoggedIn ? publishMessage : "Owner publishing is managed separately from the public studio."}</small></div></div>}</> : <div className="info-box">Choose a scene from Storyboard first.</div>}</section>
 
-            <section className="card" id="stage-5"><div className="section-head"><h2>🔊 AI Audio</h2><span>GENERATED</span></div><div className="audio-row">{(["dialogue","narration","sfx","music"] as const).map(k => <button key={k} onClick={() => setAudio(a => ({ ...a, [k]: !a[k] }))}>{audio[k] ? "✓" : "○"} {k.toUpperCase()}</button>)}</div><p className="muted">Every generated scene uses synchronized AI audio-video generation. The AI creates synchronized dialogue/voice acting, narration when appropriate, original music, ambience, Foley and sound effects according to the selected controls.</p></section>
+            <section className="card director-card" id="stage-4"><div className="section-head"><h2>🤖 AI DIRECTOR</h2><span>{directorBusy ? "ANALYZING" : Object.keys(directorPlan).length ? "READY" : "WAITING"}</span></div><p className="muted">AI Director analyzes the story and creates a shot-by-shot production plan: framing, camera movement, lighting, pacing, transitions, audio and continuity.</p><button type="button" className="generate" disabled={directorBusy || !story} onClick={runAIDirector}>{directorBusy ? "⏳ AI Director is analyzing..." : "🤖 Run AI Director"}</button>{Object.keys(directorPlan).length>0 && <div className="director-grid">{(story?.scenes || []).slice(0,24).map(scene=>{const p=directorPlan[scene.id]; if(!p)return null; return <div className="director-item" key={scene.id}><b>Scene {String(scene.id).padStart(2,"0")}</b><span>🎞 {p.shot}</span><span>📷 {p.camera}</span><span>💡 {p.lighting}</span><span>⚡ {p.pace}</span><span>↔ {p.transition}</span><span>🔊 {p.audio}</span></div>})}</div>}</section>
 
-            <section className="card production-pack" id="production-pack"><div className="section-head"><h2>🎬 AI Production Pack</h2><span>{trailerState}</span></div><p className="muted">When a movie is created, ViralMovie automatically prepares a cinematic poster, trailer teaser and subtitle track as scenes are generated.</p><div className="production-grid"><div className="production-item"><b>🖼️ Poster</b>{posterUrl ? <img src={posterUrl} alt="AI movie poster"/> : <span>Generating automatically…</span>}</div><div className="production-item"><b>🎞️ Trailer</b><div className="trailer-options">{[15,30,50,60].map(x=><button type="button" key={x} className={trailerDuration===x?"selected":""} onClick={()=>setTrailerDuration(x)}>{x}s</button>)}</div>{trailerUrl ? <video controls playsInline src={trailerUrl}/> : <span>{trailerState === "PROCESSING" ? `Processing your ${trailerDuration}s trailer in the background…` : `AI trailer ready to generate automatically · ${trailerDuration}s`}</span>}<button type="button" className="secondary" onClick={()=>{ if (!story) { setStatus("Create the movie story first."); return; } void generateProductionPack(story, idea, trailerDuration); }}>🎬 Generate Automatically</button></div><div className="production-item"><b>💬 Subtitles</b><span>{subtitleText ? `${subtitleText.split("\\n").filter(Boolean).length} subtitle cues ready.` : "Generated automatically after each completed scene."}</span>{subtitleText && <button type="button" className="secondary" onClick={() => { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([subtitleText+"\\n"],{type:"text/plain"})); a.download="viralmovie-subtitles.srt"; a.click(); }}>⇩ Download .SRT</button>}</div></div><div className="info-box">{productionMessage}</div></section>
+<section className="card auto-edit-card" id="stage-6"><div className="section-head"><h2>✂️ AUTO EDIT</h2><span>{finalMovieUrl ? "FINAL MP4 READY" : "MOVIE ASSEMBLY"}</span></div><p className="muted">Automatically assembles your generated scenes in story order into one final MP4 while preserving the audio from each scene.</p><div className="edit-flow"><span>Scene 01</span><b>→</b><span>Scene 02</span><b>→</b><span>Scene 03</span><b>→</b><span>…</span><b>→</b><strong>🎬 FINAL MOVIE</strong></div><button type="button" className="generate" disabled={finalMovieBusy || !story} onClick={autoEditMovie}>{finalMovieBusy ? "⏳ Auto Edit is rendering..." : "✂️ AUTO EDIT — Create Final MP4"}</button>{finalMovieUrl && <><div className="final-video-box"><video controls playsInline preload="metadata" src={finalMovieUrl}/></div><div className="video-actions"><button className="download" type="button" onClick={downloadFinalMovie}>⇩ Download Final Movie</button><button className="preview" type="button" onClick={()=>document.getElementById("final-movie")?.scrollIntoView({behavior:"smooth",block:"center"})}>◉ Watch Final</button></div></>}<div className="info-box">{finalMovieMessage}</div>{finalMovieUrl && <div className="info-box">For public publishing, the owner can upload this final MP4 to the movie library using the Publish button. Vercel Blob storage must be configured.</div>}</section>
 
-            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ Movie Timeline</h2><span>{editingState === "READY" ? "READY" : editingState}</span></div><div className="director-tools"><div className="director-card"><div className="director-title"><span>🤖</span><div><b>AI DIRECTOR</b><small>Shot design • pacing • lighting • camera • continuity</small></div></div><button type="button" className="secondary" onClick={runAIDirector}>{directorState === "ANALYZING" ? "⏳ AI Director analyzing..." : "🤖 AI DIRECTOR"}</button><p>{directorMessage}</p>{directorPlan.length > 0 && <div className="director-plan">{directorPlan.slice(0,12).map((x:any)=><div key={x.sceneId}><b>Scene {x.sceneId}</b><span>{x.shot} · {x.camera} · {x.lighting} · {x.pacing}</span></div>)}</div>}</div><div className="director-card auto-edit-card"><div className="director-title"><span>✂️</span><div><b>AUTOMATIC EDITING</b><small>Scenes → transitions → final MP4</small></div></div><button type="button" className="generate" onClick={autoEditMovie} disabled={editingState === "LOADING" || editingState === "RENDERING"}>{editingState === "LOADING" ? "⏳ Loading editor..." : editingState === "RENDERING" ? "🎬 Rendering final MP4..." : "✂️ AUTO EDIT"}</button><p>{editingMessage}</p>{finalMovieUrl && <><video className="final-movie-player" controls playsInline src={finalMovieUrl}/><button type="button" className="download" onClick={downloadFinalMovie}>⇩ Download Final MP4</button></>}</div></div><div className="project-map"><span>🎬 Film</span><span>🎞 Trailer</span><span>🔊 Audio</span><span>💬 Subtitles</span><span>🖼 Poster</span><span>🌐 Publish</span></div><div className="timeline-label">MOVIE TIMELINE</div><div className="timeline"><div className="timeline-track">{(story?.scenes || []).slice(0,24).map(scene=><button key={scene.id} type="button" className={selectedScene?.id===scene.id?"timeline-scene selected":"timeline-scene"} onClick={()=>{selectScene(scene);go(4)}}>Scene {String(scene.id).padStart(2,"0")}</button>)}</div></div><div className="movie-tile"><strong>{minutes===60?"1h":`${minutes} min`}</strong><span>{story?.sceneCount || 0} scenes planned • {Object.keys(generated).length} generated • {Object.keys(videoUrls).length} ready</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">AI Director creates the shot plan. Auto Edit combines every completed scene into one MP4 directly in the browser. For long films, edit in batches on a modern phone or desktop.</p></section>
+<section className="card" id="stage-7"><div className="section-head"><h2>🔊 AI Audio</h2><span>GENERATED</span></div><div className="audio-row">{(["dialogue","narration","sfx","music"] as const).map(k => <button key={k} onClick={() => setAudio(a => ({ ...a, [k]: !a[k] }))}>{audio[k] ? "✓" : "○"} {k.toUpperCase()}</button>)}</div><p className="muted">Every generated scene uses synchronized AI audio-video generation. The AI creates synchronized dialogue/voice acting, narration when appropriate, original music, ambience, Foley and sound effects according to the selected controls.</p></section>
 
-            <section className="card" id="stage-7"><div className="section-head"><h2>⇩ Export</h2><span>SHARE</span></div><button className="generate" onClick={exportProject}>Export Project</button></section>
+            <section className="card production-pack" id="stage-8"><div className="section-head"><h2>🎬 AI Production Pack</h2><span>{trailerState}</span></div><p className="muted">When a movie is created, ViralMovie automatically prepares a cinematic poster, trailer teaser and subtitle track as scenes are generated.</p><div className="production-grid"><div className="production-item"><b>🖼️ Poster</b>{posterUrl ? <img src={posterUrl} alt="AI movie poster"/> : <span>Generating automatically…</span>}</div><div className="production-item"><b>🎞️ Trailer</b><div className="trailer-options">{[15,30,50,60].map(x=><button type="button" key={x} className={trailerDuration===x?"selected":""} onClick={()=>setTrailerDuration(x)}>{x}s</button>)}</div>{trailerUrl ? <><video controls playsInline src={trailerUrl}/><div className="video-actions"><a className="download" href={`/api/video/download?url=${encodeURIComponent(trailerUrl)}`}>⇩ Download Trailer</a><button type="button" className="preview" onClick={()=>window.open(trailerUrl,"_blank","noopener,noreferrer")}>◉ Preview</button><button type="button" className="preview" onClick={async()=>{try{if(navigator.share) await navigator.share({title: story?.title || "ViralMovie Trailer", text:"AI movie trailer 🎬", url: trailerUrl}); else await navigator.clipboard.writeText(trailerUrl); setStatus("Trailer share link ready.");}catch{}}}>↗ Share</button></div></> : <span>{trailerState === "PROCESSING" ? `Processing your ${trailerDuration}s trailer in the background…` : `AI trailer ready to generate automatically · ${trailerDuration}s`}</span>}<button type="button" className="secondary" onClick={()=>{ if (!story) { setStatus("Create the movie story first."); return; } void generateProductionPack(story, idea, trailerDuration); }}>🎬 Generate Automatically</button></div><div className="production-item"><b>💬 Subtitles</b><span>{subtitleText ? `${subtitleText.split("\\n").filter(Boolean).length} subtitle cues ready.` : "Generated automatically after each completed scene."}</span>{subtitleText && <button type="button" className="secondary" onClick={() => { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([subtitleText+"\\n"],{type:"text/plain"})); a.download="viralmovie-subtitles.srt"; a.click(); }}>⇩ Download .SRT</button>}</div></div><div className="info-box">{productionMessage}</div></section>
+
+            <section className="card" id="stage-9"><div className="section-head"><h2>🎞️ Movie Timeline</h2><span>MY PROJECT</span></div><div className="project-map"><span>🎬 Film</span><span>🎞 Trailer</span><span>🔊 Audio</span><span>💬 Subtitles</span><span>🖼 Poster</span><span>🌐 Publish</span></div><div className="timeline-label">MOVIE TIMELINE</div><div className="timeline"><div className="timeline-track">{(story?.scenes || []).slice(0,24).map(scene=><button key={scene.id} type="button" className={selectedScene?.id===scene.id?"timeline-scene selected":"timeline-scene"} onClick={()=>{selectScene(scene);go(5)}}>Scene {String(scene.id).padStart(2,"0")}</button>)}</div></div><div className="movie-tile"><strong>{minutes===60?"1h":`${minutes} min`}</strong><span>{story?.sceneCount || 0} scenes planned • {Object.keys(generated).length} generated</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">Your movie is organized as a real production timeline. Generate, review, run AI Director and use Auto Edit when your scenes are ready.</p>{finalMovieUrl && <div id="final-movie" className="final-timeline-card"><b>🎬 FINAL MOVIE READY</b><span>One MP4 assembled from {Object.keys(videoUrls).length} generated scenes.</span><div className="video-actions"><button className="download" type="button" onClick={downloadFinalMovie}>⇩ Download Final Movie</button><button className="preview" type="button" onClick={()=>document.getElementById("stage-6")?.scrollIntoView({behavior:"smooth",block:"center"})}>▶ Watch</button></div></div>}<button className="secondary" type="button" onClick={exportProject}>⇩ Export Project Data</button></section>
+
+            
           </div>
 
           <aside className="right-column" id="preview"><section className="card preview-card"><div className="section-head"><h2>▶ Movie Preview</h2><span>LIVE</span></div>{readyUrl ? <video id="movie-preview-video" controls playsInline preload="metadata" src={readyUrl}/> : <div className="preview-empty"><img src="/hero-dashboard.png" alt="Movie preview"/><span className="play">▶</span><strong>{selectedScene ? `Scene ${selectedScene.id} — press Generate Scene below` : "Select a scene to create your preview"}</strong></div>}<div className="preview-actions">{selectedScene && !readyUrl && <button type="button" className="preview" disabled={generatingScene === selectedScene.id} onClick={() => generateScene(selectedScene)}>{generatingScene === selectedScene.id ? "⏳ Generating..." : "✦ Generate Scene"}</button>}<button className="download" disabled={!readyUrl} onClick={() => selectedScene && downloadVideo(selectedScene.id)}>⇩ Download Video</button><button className="preview" disabled={!readyUrl} onClick={() => selectedScene && previewVideo(selectedScene.id)}>◉ Preview</button></div>{readyUrl && selectedScene && <><div className="share-title">Send your video to</div><div className="socials"><button onClick={() => shareVideo("facebook", selectedScene.id)}>f <span>Facebook</span></button><button onClick={() => shareVideo("instagram", selectedScene.id)}>◎ <span>Instagram</span></button><button onClick={() => shareVideo("tiktok", selectedScene.id)}>♪ <span>TikTok</span></button><button onClick={() => shareVideo("youtube", selectedScene.id)}>▶ <span>YouTube</span></button><button onClick={() => shareVideo("share", selectedScene.id)}>↗ <span>Share</span></button></div><p className="share-note">Social buttons open the platform upload/share page. Download the MP4 first when a platform requires a file upload.</p></>}</section>

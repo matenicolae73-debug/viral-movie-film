@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
 
-function planForScene(scene: any, index: number, total: number, genre: string) {
-  const p = String(scene?.prompt || "").toLowerCase();
-  const progress = index / Math.max(1, total - 1);
-  const shot = index % 5 === 0 ? "wide establishing shot" : index % 3 === 0 ? "medium tracking shot" : index % 2 === 0 ? "close-up" : "over-the-shoulder shot";
-  const camera = p.includes("chase") || p.includes("run") || p.includes("action") ? "dynamic handheld tracking" : progress < .2 ? "slow cinematic dolly-in" : progress > .8 ? "controlled push-in" : "smooth cinematic tracking";
-  const lighting = p.includes("night") || p.includes("dark") ? "moody practical night lighting" : p.includes("rain") || p.includes("storm") ? "cool atmospheric storm lighting" : p.includes("sun") || p.includes("day") ? "natural daylight with cinematic contrast" : "soft cinematic key light with motivated highlights";
-  const pacing = progress < .25 ? "measured setup" : progress < .7 ? "rising tension" : progress < .9 ? "accelerated escalation" : "decisive climax and release";
-  const transition = index === total - 1 ? "fade to black" : "cinematic match/dissolve";
-  return { sceneId: Number(scene?.id || index + 1), shot, camera, lighting, pacing, transition, audio: `Preserve ${genre} ambience, dialogue, Foley, sound effects and original music continuity.` };
-}
-
-export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const scenes = Array.isArray(body?.scenes) ? body.scenes.slice(0, 720) : [];
-  if (!scenes.length) return NextResponse.json({ ok: false, error: "A movie story with scenes is required." }, { status: 400 });
-  const genre = String(body?.genre || "Cinematic");
-  const plan = scenes.map((scene: any, i: number) => planForScene(scene, i, scenes.length, genre));
-  return NextResponse.json({ ok: true, engine: "ViralMovie AI Director", plan, summary: "Shot design, camera movement, lighting, pacing, transitions and audio continuity planned from the movie structure." });
+type Scene = { id:number; prompt:string };
+export async function POST(req:Request){
+  const b=await req.json().catch(()=>({}));
+  const scenes:Array<Scene>=Array.isArray(b?.story?.scenes)?b.story.scenes:[];
+  if(!scenes.length)return NextResponse.json({ok:false,error:"A movie story with scenes is required."},{status:400});
+  const genre=String(b?.genre||"Cinematic");
+  const audio=b?.audio||{};
+  const plan:Record<number,unknown>={};
+  for(const s of scenes){
+    const n=s.id%12;
+    const shot=n===1?"Wide establishing shot":n===6?"Medium character shot":n===0?"Close-up / emotional detail":"Cinematic medium-wide shot";
+    const camera=n===1?"Slow dolly in":n===6?"Gentle handheld tracking":n===0?"Slow push-in close-up":"Controlled lateral camera move";
+    const lighting=/horror|thriller/i.test(genre)?"Low-key contrast with motivated practical light":/comedy/i.test(genre)?"Bright natural cinematic light":"Dramatic cinematic lighting with soft subject separation";
+    const pace=n===1?"Establish and breathe":n===6?"Build tension / reveal":"Continue with clean cause-and-effect";
+    const transition=n===0?"Cut on action into the next beat":n===1?"Match cut / visual continuation":"Straight cinematic cut";
+    const audioParts=[audio?.dialogue!==false?"dialogue":"no dialogue",audio?.narration!==false?"narration when useful":"no narration",audio?.music!==false?"original music":"no music",audio?.sfx!==false?"Foley + SFX":"no SFX"].join(", ");
+    plan[s.id]={shot,camera,lighting,pace,transition,audio:audioParts};
+  }
+  return NextResponse.json({ok:true,plan,engine:"ViralMovie AI Director"});
 }

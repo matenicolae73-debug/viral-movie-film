@@ -18,11 +18,8 @@ export async function GET() {
       const r = await redis("get", [slug.startsWith("vm:movie:") ? slug : `vm:movie:${slug}`]);
       if (r?.result) {
         const movie = typeof r.result === "string" ? JSON.parse(r.result) : r.result;
-        const [likes, views] = await Promise.all([
-          redis("get", [`vm:movie:${movie.slug}:likes`]),
-          redis("get", [`vm:movie:${movie.slug}:views`])
-        ]);
-        movies.push({ ...movie, likes: Number(likes?.result || movie.likes || 0), views: Number(views?.result || movie.views || 0) });
+        const [views, likes] = await Promise.all([redis("get", [`vm:movie:${slug}:views`]), redis("get", [`vm:movie:${slug}:likes`])]);
+        movies.push({ ...movie, views: Number(views?.result || 0), likes: Number(likes?.result || 0) });
       }
     }
     return NextResponse.json({ ok: true, movies });
