@@ -17,13 +17,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Find ViralMovie ZIP
+      - name: Find ZIP
         shell: bash
         run: |
           set -e
-
-          echo "Files in repository:"
-          ls -lah
 
           ZIP="./ViralMovie-AI-V4-FIXED(7)(1).zip"
 
@@ -32,14 +29,15 @@ jobs:
           fi
 
           if [ -z "$ZIP" ] || [ ! -f "$ZIP" ]; then
-            echo "ERROR: No ViralMovie AI V4 ZIP found."
+            echo "ERROR: ViralMovie ZIP not found."
+            ls -lah
             exit 1
           fi
 
           echo "ZIP FOUND: $ZIP"
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
 
-      - name: Extract ViralMovie ZIP
+      - name: Extract ZIP
         shell: bash
         run: |
           set -e
@@ -47,7 +45,7 @@ jobs:
           mkdir extracted
           unzip -o "$ZIP" -d extracted
 
-      - name: Install project files
+      - name: Copy project
         shell: bash
         run: |
           set -e
@@ -58,7 +56,7 @@ jobs:
             ROOT=$(find extracted -mindepth 1 -maxdepth 1 -type d | head -n 1)
 
             if [ -z "$ROOT" ] || [ ! -f "$ROOT/package.json" ]; then
-              echo "ERROR: package.json was not found."
+              echo "ERROR: package.json not found."
               find extracted -maxdepth 4 -type f | head -100
               exit 1
             fi
@@ -67,9 +65,8 @@ jobs:
           fi
 
           rm -rf extracted
-          echo "Project installed successfully."
 
-      - name: Remove uploaded ZIP
+      - name: Remove ZIP
         shell: bash
         run: |
           rm -f "$ZIP"
@@ -88,5 +85,8 @@ jobs:
             echo "No changes to commit."
           else
             git commit -m "Install ViralMovie AI V4"
+
+            # Push only project files.
+            # The workflow itself is not changed by this commit.
             git push
           fi
