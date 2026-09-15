@@ -344,7 +344,7 @@ export default function Home() {
           const rr = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "result", statusUrl: statusUrl || undefined, responseUrl: responseUrl || undefined }) });
           const rd = await rr.json().catch(() => ({}));
           if (!rr.ok || !rd?.ok) {
-            const raw = rd?.error?.message || rd?.error?.detail || rd?.message || "Could not retrieve the finished video.";
+            const raw = rd?.error?.message || rd?.error?.detail || (typeof rd?.error === "string" ? rd.error : "") || rd?.message || "Could not retrieve the finished video.";
             setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
             setVideoError(x => ({ ...x, [sceneId]: raw }));
             setStatus(`Scene ${sceneId} result error: ${raw}`);

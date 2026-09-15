@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     const key = process.env.FAL_KEY?.trim();
     if (!requestId) return NextResponse.json({ ok: false, error: "requestId is required." }, { status: 400 });
     if (!key) return NextResponse.json({ ok: false, error: "The service is temporarily unavailable." }, { status: 500 });
-    const canonicalUrl = `https://queue.fal.run/${MODEL}/requests/${encodeURIComponent(requestId)}${action === "result" ? "" : "/status?logs=1"}`;
+    const canonicalUrl = `https://queue.fal.run/${MODEL}/requests/${encodeURIComponent(requestId)}${action === "result" ? "/response" : "/status?logs=1"}`;
     const custom = action === "result" ? body?.responseUrl : body?.statusUrl;
     const urls = [custom, canonicalUrl].filter((value, index, all): value is string => Boolean(value) && all.indexOf(value) === index);
 
