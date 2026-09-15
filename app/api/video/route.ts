@@ -36,13 +36,14 @@ export async function POST(request: Request) {
       const falRequestId = response.headers.get("x-fal-request-id") || response.headers.get("X-Fal-Request-Id") || null;
       const falErrorType = response.headers.get("x-fal-error-type") || response.headers.get("X-Fal-Error-Type") || null;
       const detail = data?.detail || data?.message || data?.error || data?.errors?.[0]?.message || "The video service returned an error.";
+      const errorText = typeof detail === "string" ? detail : JSON.stringify(detail);
       const diagnostic = [
         `falStatus=${response.status}`,
         falErrorType ? `falErrorType=${falErrorType}` : "",
         falRequestId ? `falRequestId=${falRequestId}` : "",
-        typeof detail === "string" ? detail : JSON.stringify(detail),
+        errorText,
       ].filter(Boolean).join(" | ");
-      return NextResponse.json({ ok: false, message: diagnostic, falStatus: response.status, falErrorType, falRequestId, data, raw: raw.slice(0, 4000) }, { status: response.status });
+      return NextResponse.json({ ok: false, message: diagnostic, falStatus: response.status, falErrorType, falRequestId, data, raw: raw.slice(0, 4000), diagnostic: { status: response.status, errorType: falErrorType, requestId: falRequestId, detail: errorText } }, { status: response.status });
     }
     const requestId = data?.request_id || data?.requestId;
     if (!requestId) return NextResponse.json({ ok: false, message: "The video service did not return a valid request. Please try again.", data }, { status: 502 });
