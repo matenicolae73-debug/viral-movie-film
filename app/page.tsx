@@ -327,15 +327,25 @@ export default function Home() {
       try {
         const r = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "status", statusUrl: statusUrl || undefined, responseUrl: responseUrl || undefined }), cache: "no-store" });
         const contentType = r.headers.get("content-type") || "";
-        const d = contentType.includes("application/json") ? await r.json().catch(() => ({})) : { message: await r.text().catch(() => "Non-JSON response from server.") };
+        const rawBody = await r.text().catch(() => "");
+        let d: any = {};
+        try { d = rawBody ? JSON.parse(rawBody) : {}; } catch { d = { message: rawBody }; }
         if (!r.ok || !d?.ok) {
-          const raw = d?.error?.message || d?.error?.detail || d?.message || "Status check failed.";
+          const raw = d?.error?.message || d?.error?.detail || (typeof d?.error === "string" ? d.error : "") || d?.message || `HTTP ${r.status} from /api/video/status`;
+          const detail = [raw, d?.falStatus ? `falStatus=${d.falStatus}` : "", d?.falRequestId ? `requestId=${d.falRequestId}` : ""].filter(Boolean).join(" | ");
           setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
-          setVideoError(x => ({ ...x, [sceneId]: raw }));
-          setStatus(`Scene ${sceneId} status error: ${raw}`);
+          setVideoError(x => ({ ...x, [sceneId]: detail }));
+          setStatus(`Scene ${sceneId} status error: ${detail}`);
           return;
         }
-        const st = String(d?.data?.status || d?.data?.state || d?.status || "");
+        const st = String(d?.data?.status || d?.data?.state || d?.data?.data?.status || d?.data?.data?.state || d?.status || d?.state || "");
+        if (!st) {
+          const detail = d?.data?.message || d?.data?.detail || d?.message || `HTTP ${r.status}: fal.ai returned no status`;
+          setVideoState(x => ({ ...x, [sceneId]: "STATUS_UNKNOWN" }));
+          setVideoError(x => ({ ...x, [sceneId]: String(detail) }));
+          setStatus(`Scene ${sceneId}: status unavailable — ${String(detail)}`);
+          continue;
+        }
         if (st) {
           setVideoState(x => ({ ...x, [sceneId]: st }));
           setStatus(`Scene ${sceneId}: ${st}`);
