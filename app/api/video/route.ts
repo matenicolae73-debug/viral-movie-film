@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { moderatePrompt } from "@/lib/safety";
+import { fal } from "@fal-ai/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,24 +30,20 @@ export async function POST(request: Request) {
     if (body?.adultConfirmed !== true) return NextResponse.json({ ok: false, message: "You must confirm that you are 18+ and agree to the ViralMovie safety rules." }, { status: 400 });
     const key = process.env.FAL_KEY?.trim();
     if (!key) return NextResponse.json({ ok: false, message: "The video service is temporarily unavailable." }, { status: 500 });
-    const response = await fetch(`https://queue.fal.run/${MODEL}`, { method: "POST", headers: { Authorization: `Key ${key}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ input: { prompt: finalPrompt, aspect_ratio, duration: 5, resolution: "540p", audio: true } }), cache: "no-store" });
-    const raw = await response.text().catch(() => "");
-    let data: any = {}; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
-    if (!response.ok) {
-      const falRequestId = response.headers.get("x-fal-request-id") || response.headers.get("X-Fal-Request-Id") || null;
-      const falErrorType = response.headers.get("x-fal-error-type") || response.headers.get("X-Fal-Error-Type") || null;
-      const detail = data?.detail || data?.message || data?.error || data?.errors?.[0]?.message || "The video service returned an error.";
-      const errorText = typeof detail === "string" ? detail : JSON.stringify(detail);
-      const diagnostic = [
-        `falStatus=${response.status}`,
-        falErrorType ? `falErrorType=${falErrorType}` : "",
-        falRequestId ? `falRequestId=${falRequestId}` : "",
-        errorText,
-      ].filter(Boolean).join(" | ");
-      return NextResponse.json({ ok: false, message: diagnostic, falStatus: response.status, falErrorType, falRequestId, data, raw: raw.slice(0, 4000), diagnostic: { status: response.status, errorType: falErrorType, requestId: falRequestId, detail: errorText } }, { status: response.status });
+    fal.config({ credentials: key });
+    const submitted = await fal.queue.submit(MODEL, {
+      input: {
+        prompt: finalPrompt,
+        aspect_ratio,
+        duration: 5,
+        resolution: "540p",
+        audio: true,
+      },
+    });
+    const requestId = submitted?.request_id || submitted?.requestId;
+    if (!requestId) {
+      return NextResponse.json({ ok: false, message: "The video service did not return a valid request.", data: submitted }, { status: 502 });
     }
-    const requestId = data?.request_id || data?.requestId;
-    if (!requestId) return NextResponse.json({ ok: false, message: "The video service did not return a valid request. Please try again.", data }, { status: 502 });
-    return NextResponse.json({ ok: true, audioEnabled: true, audio, requestId, responseUrl: data?.response_url || data?.responseUrl || null, statusUrl: data?.status_url || data?.statusUrl || null, data });
+    return NextResponse.json({ ok: true, audioEnabled: true, audio, requestId, data: submitted });
   } catch (e) { return NextResponse.json({ ok: false, message: e instanceof Error ? e.message : "Video request failed." }, { status: 500 }); }
 }
