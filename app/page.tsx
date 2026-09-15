@@ -310,7 +310,7 @@ export default function Home() {
       setGenerated(x => ({ ...x, [scene.id]: true }));
       setVideoState(x => ({ ...x, [scene.id]: "IN_QUEUE" }));
       setStatus(`Scene ${scene.id}: IN_QUEUE — Vidu is generating your 5-second AI video with synchronized audio...`);
-      await pollScene(scene.id, rid);
+      await pollScene(scene.id, rid, d.statusUrl || d.status_url || d.data?.status_url || d.data?.statusUrl, d.responseUrl || d.response_url || d.data?.response_url || d.data?.responseUrl);
     } catch (e: unknown) {
       setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
       const message = e instanceof DOMException && e.name === "AbortError" ? "The video server took too long to respond. Please try again in a moment or contact support." : e instanceof Error ? e.message : "Video request failed.";
@@ -321,11 +321,11 @@ export default function Home() {
     }
   }
 
-  async function pollScene(sceneId: number, rid: string) {
+  async function pollScene(sceneId: number, rid: string, statusUrl?: string | null, responseUrl?: string | null) {
     for (let i = 0; i < 90; i++) {
       if (i > 0) await new Promise(r => setTimeout(r, 4000));
       try {
-        const r = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "status" }), cache: "no-store" });
+        const r = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "status", statusUrl: statusUrl || undefined, responseUrl: responseUrl || undefined }), cache: "no-store" });
         const contentType = r.headers.get("content-type") || "";
         const d = contentType.includes("application/json") ? await r.json().catch(() => ({})) : { message: await r.text().catch(() => "Non-JSON response from server.") };
         if (!r.ok || !d?.ok) {
@@ -341,7 +341,7 @@ export default function Home() {
           setStatus(`Scene ${sceneId}: ${st}`);
         }
         if (["COMPLETED", "SUCCESS", "SUCCEEDED"].includes(st.toUpperCase())) {
-          const rr = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "result" }) });
+          const rr = await fetch("/api/video/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: rid, action: "result", statusUrl: statusUrl || undefined, responseUrl: responseUrl || undefined }) });
           const rd = await rr.json().catch(() => ({}));
           if (!rr.ok || !rd?.ok) {
             const raw = rd?.error?.message || rd?.error?.detail || rd?.message || "Could not retrieve the finished video.";
@@ -350,7 +350,7 @@ export default function Home() {
             setStatus(`Scene ${sceneId} result error: ${raw}`);
             return;
           }
-          const url = rd?.data?.video?.url || rd?.data?.data?.video?.url || rd?.video?.url;
+          const url = rd?.data?.video?.url || rd?.data?.data?.video?.url || rd?.data?.video_url || rd?.data?.videoUrl || rd?.video?.url || rd?.video_url || rd?.videoUrl || rd?.data?.url || rd?.url;
           if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); setStatus(`Scene ${sceneId} is READY — Preview, Download and Share.`); }
           else { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus("Generation finished, but Vidu returned no video URL."); }
           return;
