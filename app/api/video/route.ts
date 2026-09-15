@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         audio: true,
       },
     });
-    const requestId = submitted.request_id;
+    const requestId = (submitted as { request_id?: string }).request_id;
     if (!requestId) {
       return NextResponse.json({ ok: false, message: "The video service did not return a valid request.", data: submitted }, { status: 502 });
     }

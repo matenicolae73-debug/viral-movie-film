@@ -181,8 +181,8 @@ export default function Home() {
 
   async function oneClickMovie() {
     if (!idea.trim()) { setStatus("Write your movie idea first."); go(0); return; }
-    if (!adultConfirmed) { setStatus("Confirm 18+ safety before starting the One-Click Movie production pack."); go(0); return; }
-    setStatus("ONE-CLICK MOVIE: script → characters → continuity → visual style → camera → poster → trailer...");
+    if (!adultConfirmed) { setStatus("Confirm 18+ safety before starting the One-Click Movie."); go(0); return; }
+    setStatus("ONE-CLICK MOVIE: script → characters → continuity → visual style → camera → video → edit → poster → trailer...");
     try {
       const r = await fetch("/api/story", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea, genre, minutes }) });
       const d = await r.json();
@@ -203,9 +203,26 @@ export default function Home() {
       if (dr.ok && dd?.ok) setDirectorPlan(Array.isArray(dd.plan) ? dd.plan : []);
       setDirectorState("READY");
 
-      setStatus("ONE-CLICK MOVIE: story, character memory, continuity, visual style and camera plan are ready.");
-      setActive(1);
-      setTimeout(() => document.getElementById("stage-1")?.scrollIntoView({ behavior: "smooth" }), 30);
+      // Generate the complete movie automatically. The individual 5-second clips remain
+      // an internal production mechanism; the user does not need to open/generate them manually.
+      const movieScenes: Scene[] = Array.isArray(d.scenes) ? d.scenes : [];
+      setActive(4);
+      setScenePage(0);
+      setStatus(`ONE-CLICK MOVIE: generating the full ${minutes}-minute movie — 0/${movieScenes.length} clips...`);
+      const movieUrls: Record<number, string> = {};
+      for (let i = 0; i < movieScenes.length; i++) {
+        const scene = movieScenes[i];
+        setSelectedScene(scene);
+        setStatus(`ONE-CLICK MOVIE: generating clip ${i + 1}/${movieScenes.length}...`);
+        const url = await generateScene(scene);
+        if (!url) throw new Error(`Movie generation stopped at clip ${i + 1}.`);
+        movieUrls[scene.id] = url;
+      }
+
+      setStatus(`ONE-CLICK MOVIE: all ${movieScenes.length} clips are ready. Starting Auto Editor...`);
+      setActive(6);
+      setTimeout(() => document.getElementById("stage-6")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+      await autoEditMovie(movieUrls, d);
       void generateProductionPack(d, idea, trailerDuration);
     } catch (e) {
       setDirectorState("FAILED");
@@ -275,9 +292,9 @@ export default function Home() {
     setTimeout(() => document.getElementById("stage-4")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
   }
 
-  async function generateScene(scene: Scene) {
-    if (generatingScene === scene.id) return;
-    if (!adultConfirmed) { setStatus("Confirm that you are 18+ before generating a video."); return; }
+  async function generateScene(scene: Scene): Promise<string | null> {
+    if (generatingScene === scene.id) return null;
+    if (!adultConfirmed) { setStatus("Confirm that you are 18+ before generating a video."); return null; }
     setSelectedScene(scene); setActive(4); setGeneratingScene(scene.id);
     setVideoError(x => ({ ...x, [scene.id]: "" }));
     setVideoState(x => ({ ...x, [scene.id]: "SUBMITTING" }));
@@ -298,30 +315,31 @@ export default function Home() {
         setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
         setVideoError(x => ({ ...x, [scene.id]: raw }));
         setStatus(`Scene ${scene.id} error: ${raw}`);
-        return;
+        return null;
       }
       const rid = d.requestId || d.data?.request_id || d.data?.requestId;
       if (!rid) {
         setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
         setVideoError(x => ({ ...x, [scene.id]: "Vidu accepted the request but returned no request ID. Try again." }));
         setStatus("Vidu accepted the request but returned no request ID. Try again.");
-        return;
+        return null;
       }
       setGenerated(x => ({ ...x, [scene.id]: true }));
       setVideoState(x => ({ ...x, [scene.id]: "IN_QUEUE" }));
       setStatus(`Scene ${scene.id}: IN_QUEUE — Vidu is generating your 5-second AI video with synchronized audio...`);
-      await pollScene(scene.id, rid, d.statusUrl || d.status_url || d.data?.status_url || d.data?.statusUrl, d.responseUrl || d.response_url || d.data?.response_url || d.data?.responseUrl);
+      return await pollScene(scene.id, rid, d.statusUrl || d.status_url || d.data?.status_url || d.data?.statusUrl, d.responseUrl || d.response_url || d.data?.response_url || d.data?.responseUrl);
     } catch (e: unknown) {
       setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
       const message = e instanceof DOMException && e.name === "AbortError" ? "The video server took too long to respond. Please try again in a moment or contact support." : e instanceof Error ? e.message : "Video request failed.";
       setVideoError(x => ({ ...x, [scene.id]: message }));
       setStatus(`Scene ${scene.id} error: ${message}`);
+      return null;
     } finally {
       setGeneratingScene(current => current === scene.id ? null : current);
     }
   }
 
-  async function pollScene(sceneId: number, rid: string, statusUrl?: string | null, responseUrl?: string | null) {
+  async function pollScene(sceneId: number, rid: string, statusUrl?: string | null, responseUrl?: string | null): Promise<string | null> {
     for (let i = 0; i < 90; i++) {
       if (i > 0) await new Promise(r => setTimeout(r, 4000));
       try {
@@ -336,7 +354,7 @@ export default function Home() {
           setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
           setVideoError(x => ({ ...x, [sceneId]: detail }));
           setStatus(`Scene ${sceneId} status error: ${detail}`);
-          return;
+          return null;
         }
         const st = String(d?.data?.status || d?.data?.state || d?.data?.data?.status || d?.data?.data?.state || d?.status || d?.state || "");
         if (!st) {
@@ -358,12 +376,12 @@ export default function Home() {
             setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
             setVideoError(x => ({ ...x, [sceneId]: raw }));
             setStatus(`Scene ${sceneId} result error: ${raw}`);
-            return;
+            return null;
           }
           const url = rd?.data?.video?.url || rd?.data?.data?.video?.url || rd?.data?.video_url || rd?.data?.videoUrl || rd?.video?.url || rd?.video_url || rd?.videoUrl || rd?.data?.url || rd?.url;
-          if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); setStatus(`Scene ${sceneId} is READY — Preview, Download and Share.`); }
+          if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); setStatus(`Scene ${sceneId} is READY — Preview, Download and Share.`); return url; }
           else { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus("Generation finished, but Vidu returned no video URL."); }
-          return;
+          return null;
         }
         if (["FAILED", "ERROR", "CANCELLED"].includes(st.toUpperCase())) {
           const detail = d?.data?.error || d?.data?.detail || d?.data?.message || d?.error || "Vidu reported a generation failure.";
@@ -372,7 +390,7 @@ export default function Home() {
           setVideoState(x => ({ ...x, [sceneId]: "FAILED" }));
           setVideoError(x => ({ ...x, [sceneId]: `FAILED${errorType}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}${logs ? ` — ${logs}` : ""}` }));
           setStatus(`Scene ${sceneId} FAILED${errorType}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}${logs ? ` — ${logs}` : ""}`);
-          return;
+          return null;
         }
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Network error while checking video status.";
@@ -383,6 +401,7 @@ export default function Home() {
       }
     }
     setVideoState(x => ({ ...x, [sceneId]: "TIMEOUT" })); setStatus("Generation is taking longer than expected.");
+    return null;
   }
 
   async function shareVideo(platform: string, sceneId: number) {
@@ -418,8 +437,10 @@ export default function Home() {
     }
   }
 
-  async function autoEditMovie() {
-    const scenes = (story?.scenes || []).filter(s => videoUrls[s.id]);
+  async function autoEditMovie(overrideUrls?: Record<number, string>, overrideStory?: Story) {
+    const activeStory = overrideStory || story;
+    const activeUrls = overrideUrls || videoUrls;
+    const scenes = (activeStory?.scenes || []).filter(s => activeUrls[s.id]);
     if (scenes.length < 2) { setEditingMessage("Generate at least 2 completed scenes before Auto Edit."); setEditingState("WAITING"); return; }
     setEditingState("LOADING"); setEditingMessage(`Preparing ${scenes.length} scenes for automatic editing...`);
     try {
@@ -432,7 +453,7 @@ export default function Home() {
       for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
         setEditingMessage(`Auto Edit: importing Scene ${scene.id} (${i + 1}/${scenes.length})...`);
-        const proxy = `/api/video/download?url=${encodeURIComponent(videoUrls[scene.id])}`;
+        const proxy = `/api/video/download?url=${encodeURIComponent(activeUrls[scene.id])}`;
         await ffmpeg.writeFile(`scene-${i}.mp4`, await fetchFile(proxy));
       }
       const list = scenes.map((_, i) => `file 'scene-${i}.mp4'`).join("\n");
