@@ -47,6 +47,10 @@ export async function POST(request: Request) {
       if (imageResponse.ok) posterUrl = extractUrl(data);
     } catch {}
 
+    if (body?.posterOnly === true) {
+      return NextResponse.json({ ok: true, posterUrl, trailerRequestId: null, trailerDuration: 0, requestedDuration: 0 });
+    }
+
     const trailerPrompt = `Create a cinematic trailer teaser shot for the fictional movie "${title}". Genre: ${genre}. Story: ${idea}. ${logline}. Make this a high-impact trailer moment with a clear beginning, dramatic visual action and an ending hook. Original fictional characters only. No real people, celebrities, copyrighted characters or imitation of a real person's voice. Synchronized original cinematic music, ambience, dialogue when appropriate and sound effects.`.slice(0, 2000);
 
     const videoResponse = await fetch(`https://queue.fal.run/${VIDEO_MODEL}`, {
