@@ -431,7 +431,9 @@ export default function Home() {
       await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-movflags", "+faststart", "movie-final.mp4"]);
       const data = await ffmpeg.readFile("movie-final.mp4");
       const bytes = data instanceof Uint8Array ? data : new TextEncoder().encode(String(data));
-      const blob = new Blob([bytes], { type: "video/mp4" });
+      const buffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buffer).set(bytes);
+      const blob = new Blob([buffer], { type: "video/mp4" });
       const url = URL.createObjectURL(blob);
       setFinalMovieUrl(url);
       setEditingState("READY"); setEditingMessage(`Final MP4 ready: ${scenes.length} scenes edited into one movie.`);
