@@ -27,18 +27,10 @@ export async function POST(request: Request) {
   const safety = moderatePrompt(`${title}\n${description}\n${prompt}`);
   if (!safety.ok) return NextResponse.json({ ok: false, error: safety.reason }, { status: 400 });
   if (!/^https:\/\/(?:[^/]+\.)?fal\.media\//i.test(videoUrl)) return NextResponse.json({ ok: false, error: "Only generated fal.media video URLs can be published." }, { status: 400 });
-  const movie = {
-    slug: `${slugify(title)}-${Date.now().toString(36)}`,
-    title, description, videoUrl,
-    posterUrl: String(body?.posterUrl || "").trim(),
-    trailerUrl: String(body?.trailerUrl || "").trim(),
-    publishedAt: new Date().toISOString(), aiGenerated: true,
-    likes: 0, views: 0
-  };
+  const movie = { slug: `${slugify(title)}-${Date.now().toString(36)}`, title, description, videoUrl, publishedAt: new Date().toISOString(), aiGenerated: true };
   try {
     await redis("set", [`vm:movie:${movie.slug}`, JSON.stringify(movie)]);
     await redis("lpush", ["vm:movies", movie.slug]);
-    await Promise.all([redis("set", [`vm:movie:${movie.slug}:likes`, "0"]), redis("set", [`vm:movie:${movie.slug}:views`, "0"])]);
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Could not save movie." }, { status: 500 });
   }

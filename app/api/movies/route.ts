@@ -16,14 +16,7 @@ export async function GET() {
     const movies = [];
     for (const slug of list) {
       const r = await redis("get", [slug.startsWith("vm:movie:") ? slug : `vm:movie:${slug}`]);
-      if (r?.result) {
-        const movie = typeof r.result === "string" ? JSON.parse(r.result) : r.result;
-        const [likes, views] = await Promise.all([
-          redis("get", [`vm:movie:${movie.slug}:likes`]),
-          redis("get", [`vm:movie:${movie.slug}:views`])
-        ]);
-        movies.push({ ...movie, likes: Number(likes?.result || movie.likes || 0), views: Number(views?.result || movie.views || 0) });
-      }
+      if (r?.result) movies.push(typeof r.result === "string" ? JSON.parse(r.result) : r.result);
     }
     return NextResponse.json({ ok: true, movies });
   } catch (e) {
