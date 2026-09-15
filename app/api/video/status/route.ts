@@ -43,3 +43,17 @@ export async function POST(request: Request) {
     }, { status: lastStatus });
   } catch (e) { return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Could not check video status." }, { status: 500 }); }
 }
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const requestId = url.searchParams.get("requestId") || "";
+  const action = url.searchParams.get("action") || "status";
+  const statusUrl = url.searchParams.get("statusUrl") || undefined;
+  const responseUrl = url.searchParams.get("responseUrl") || undefined;
+  const synthetic = new Request(request.url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId, action, statusUrl, responseUrl }),
+  });
+  return POST(synthetic);
+}
+
