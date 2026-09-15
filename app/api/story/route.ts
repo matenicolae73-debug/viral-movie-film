@@ -11,13 +11,20 @@ export async function POST(req: Request) {
   const safeMinutes = Math.min(60, Math.max(1, minutes));
   const sceneCount = Math.max(12, Math.round(safeMinutes * 12));
   // Long-form planning: 12 cinematic 5-second scenes per minute.
-  // The UI paginates the plan so even a 60-minute film stays usable.
-  const sample = Math.min(sceneCount, 120);
-
-  const scenes = Array.from({ length: sample }, (_, i) => ({
-    id: i + 1,
-    prompt: `Cinematic ${genre.toLowerCase()} scene ${i + 1} of ${sceneCount}: ${idea}. Build a coherent long-form movie progression. Maintain visual continuity, consistent characters, locations and wardrobe, realistic motion, dramatic lighting, film-quality composition.`
-  }));
+  // Return the complete scene plan; the UI paginates it so 60-minute movies
+  // can still be navigated without losing scenes.
+  const scenes = Array.from({ length: sceneCount }, (_, i) => {
+    const id = i + 1;
+    const progress = id / sceneCount;
+    const act = progress <= 0.25 ? "ACT I — setup and discovery" : progress <= 0.5 ? "ACT II — rising conflict" : progress <= 0.75 ? "ACT III — escalation and turning point" : "ACT IV — climax and resolution";
+    const beat = id % 12 === 1 ? "establish the location and visual context" : id % 12 === 6 ? "advance the story with a meaningful character action or reveal" : id % 12 === 0 ? "end the beat with a visual hook that naturally leads into the next scene" : "continue the previous action with clear cause-and-effect";
+    return {
+      id,
+      durationSeconds: 5,
+      act,
+      prompt: `Cinematic ${genre.toLowerCase()} scene ${id} of ${sceneCount}. Movie idea: ${idea}. ${act}. ${beat}. Maintain strict continuity with previous and following scenes: same main characters, faces, wardrobe, props, locations, time of day, visual style and story logic. Use film-quality composition, realistic motion, consistent camera language, dramatic lighting and a clean beginning/middle/end for this 5-second shot. Generate complete synchronized AI audio for the shot: natural character dialogue when characters speak, cinematic narration when appropriate, realistic ambience, Foley and sound effects, and an appropriate original cinematic music score. Keep voices, tone and audio continuity consistent across scenes. Do not reset the story or introduce unrelated characters.`
+    };
+  });
 
   return NextResponse.json({
     ok: true,
@@ -25,10 +32,8 @@ export async function POST(req: Request) {
     title: "ViralMovie Project",
     logline: `A ${genre.toLowerCase()} movie built from: ${idea}`,
     sceneCount,
-    visibleScenes: sample,
+    visibleScenes: sceneCount,
     scenes,
-    note: sceneCount > sample
-      ? `The full plan contains ${sceneCount} scenes. The first ${sample} are shown in this test interface.`
-      : "Scene plan ready."
+    note: `Complete long-film plan: ${sceneCount} scenes × 5 seconds. The storyboard UI shows 12 scenes per page.`
   });
 }
