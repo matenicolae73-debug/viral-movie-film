@@ -14,7 +14,8 @@
     "react-dom": "19.1.0",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
-    "@vercel/blob": "^2.0.0"
+    "@vercel/blob": "^2.0.0",
+    "@fal-ai/client": "^1.6.2"
   },
   "devDependencies": {
     "@types/node": "^20",
