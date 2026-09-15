@@ -430,10 +430,8 @@ export default function Home() {
       setEditingState("RENDERING"); setEditingMessage("AI Director timeline is rendering the final MP4...");
       await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-movflags", "+faststart", "movie-final.mp4"]);
       const data = await ffmpeg.readFile("movie-final.mp4");
-      const bytes: Uint8Array = typeof data === "string" ? new TextEncoder().encode(data) : data;
-      const buffer = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(buffer).set(bytes);
-      const blob = new Blob([buffer], { type: "video/mp4" });
+      const bytes = data instanceof Uint8Array ? data : new TextEncoder().encode(String(data));
+      const blob = new Blob([bytes], { type: "video/mp4" });
       const url = URL.createObjectURL(blob);
       setFinalMovieUrl(url);
       setEditingState("READY"); setEditingMessage(`Final MP4 ready: ${scenes.length} scenes edited into one movie.`);
