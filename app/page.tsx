@@ -195,12 +195,7 @@ export default function Home() {
 
   async function oneClickMovie() {
     if (!idea.trim()) { setStatus("Write your movie idea first."); go(0); return; }
-    if (!adultConfirmed) {
-      setActive(4);
-      setStatus("Before generating, confirm the 18+ safety checkbox in Video + Voice.");
-      setTimeout(() => document.getElementById("stage-4")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-      return;
-    }
+    if (!adultConfirmed) { setStatus("Confirm 18+ safety before starting the One-Click Movie."); go(0); return; }
     setAudio({ dialogue: true, narration: true, music: true, sfx: true });
     setSubtitleText("");
     setPosterUrl("");
@@ -544,7 +539,7 @@ SHOT ${scene.id}: ${scene.durationSeconds || 5} seconds. Begin exactly where the
   }
 
   function downloadFinalMovie() {
-    if (!finalMovieUrl) { setEditingMessage("Create the final MP4 with Auto Edit first."); return; }
+    if (!finalMovieUrl) { setEditingMessage("Create the complete movie with Generate Full Movie first."); return; }
     const a = document.createElement("a"); a.href = finalMovieUrl; a.download = `${(story?.title || "ViralMovie").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase() || "viralmovie"}-final.mp4`; a.click();
   }
 
@@ -616,11 +611,11 @@ Example: A young astronaut lands on Mars and discovers a mysterious underground 
               <button type="button" className="create-step create-step-button" onClick={openScenesStep}>
                 <span>05</span><div><b>Scenes</b><p className="muted">Your story becomes an automatic cinema production plan.</p></div><strong>→</strong>
               </button>
-              <div className="create-step"><span>06</span><div><b>Generate Movie</b><div className="field-row"><select aria-label="Movie format" value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select><label style={{display:"flex",alignItems:"center",gap:8}}><span className="muted">Minutes</span><input aria-label="Movie duration in minutes" type="number" min={1} max={60} step={1} value={minutes} onChange={e=>{const n=Math.min(60,Math.max(1,Number(e.target.value)||1));setMinutes(n)}} style={{width:82}} /></label><div className="duration-pills compact">{durations.map(x=><button type="button" key={x} className={minutes===x?"selected":""} onClick={()=>setMinutes(x)}>{x===60?"60m":`${x}m`}</button>)}</div></div><small className="muted">Final movie duration: {minutes} minute{minutes===1?"":"s"} • scenes are generated automatically and merged into ONE final MP4 • 5 seconds per internal clip</small></div></div>
-              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}><button type="button" className="generate" onClick={(e) => { e.preventDefault(); void oneClickMovie(); }}>✦ Generate Full Movie</button><button type="button" className="secondary" onClick={generateStory}>📝 Build Story Plan</button></div><div className="status-line">{status}</div>
+              <div className="create-step"><span>06</span><div><b>Generate Movie</b><div className="field-row"><select aria-label="Movie format" value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select><label style={{display:"flex",alignItems:"center",gap:8}}><span className="muted">Minutes</span><input aria-label="Movie duration in minutes" type="number" min={1} max={60} step={1} value={minutes} onChange={e=>{const n=Math.min(60,Math.max(1,Number(e.target.value)||1));setMinutes(n)}} style={{width:82}} /></label><div className="duration-pills compact">{durations.map(x=><button type="button" key={x} className={minutes===x?"selected":""} onClick={()=>setMinutes(x)}>{x===60?"60m":`${x}m`}</button>)}</div></div><small className="muted">Final movie duration: {minutes} minute{minutes===1?"":"s"} • scenes are generated automatically and merged into ONE final MP4 • 5 seconds per internal clip • Full Movie mode automatically assembles all clips</small></div></div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}><button type="button" className="generate" onClick={oneClickMovie}>✦ Generate Full Movie</button><button type="button" className="secondary" onClick={generateStory}>📝 Build Story Plan</button></div><div className="status-line">{status}</div>
             </section>
 
-            <section className="card" id="stage-1"><div className="section-head"><h2>⚡ AI Story</h2><span>{story ? "READY" : "WAITING"}</span></div>{story ? <><h3>{story.title}</h3><p className="muted">{story.logline}</p><div className="info-box">{story.sceneCount} planned scenes • {minutes * 60} seconds • 5 seconds per scene</div></> : <div className="info-box">Press Generate Full Movie to create the complete film automatically.</div>}</section>
+            <section className="card" id="stage-1"><div className="section-head"><h2>⚡ AI Story</h2><span>{story ? "READY" : "WAITING"}</span></div>{story ? <><h3>{story.title}</h3><p className="muted">{story.logline}</p><div className="info-box">{story.sceneCount} planned scenes • {minutes * 60} seconds • 5 seconds per internal shot</div></> : <div className="info-box">Press Generate Full Movie to create the complete film automatically.</div>}</section>
 
             <section className="card" id="stage-2"><div className="section-head"><h2>👤 Character Bible</h2><span>{selectedCharacter ? `SELECTED: ${selectedCharacter.name.toUpperCase()}` : "CONSISTENCY"}</span></div><p className="muted">Keep the same character identity across 20, 50 or 100 scenes.</p><button type="button" className="secondary" onClick={openCharacters}>✦ {characters.length ? "Refresh Character Bible" : "Create Character Bible"}</button>{characters.length > 0 && <div className="character-bible-grid">{characters.map(c=><button type="button" className={`character character-bible ${selectedCharacterId===c.id?"character-selected":""}`} key={c.id} onClick={()=>selectCharacter(c)}><div className="avatar">◉</div><b>{c.name}</b><span className="character-role">{c.role}</span><small>Age: {c.age || "—"}</small><small>Personality: {c.personality || "—"}</small><small>Wardrobe: {c.wardrobe || "—"}</small><small>Voice: {c.voice || "—"}</small><em>🔒 Character Consistency</em></button>)}</div>}</section>
 
