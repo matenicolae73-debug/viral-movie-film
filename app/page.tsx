@@ -50,7 +50,7 @@ export default function Home() {
   const [directorMessage, setDirectorMessage] = useState("AI Director is ready to analyze your movie.");
   const [finalMovieUrl, setFinalMovieUrl] = useState("");
   const [editingState, setEditingState] = useState("READY");
-  const [editingMessage, setEditingMessage] = useState("Generate the complete movie, then render the final MP4 automatically.");
+  const [editingMessage, setEditingMessage] = useState("Generate at least 2 scenes, then use Auto Edit.");
 
   useEffect(() => {
     fetch("/api/video/health", { cache: "no-store" })
@@ -195,7 +195,12 @@ export default function Home() {
 
   async function oneClickMovie() {
     if (!idea.trim()) { setStatus("Write your movie idea first."); go(0); return; }
-    if (!adultConfirmed) { setStatus("Confirm 18+ safety before starting the One-Click Movie."); go(0); return; }
+    if (!adultConfirmed) {
+      setActive(4);
+      setStatus("Before generating, confirm the 18+ safety checkbox in Video + Voice.");
+      setTimeout(() => document.getElementById("stage-4")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      return;
+    }
     setAudio({ dialogue: true, narration: true, music: true, sfx: true });
     setSubtitleText("");
     setPosterUrl("");
@@ -254,7 +259,7 @@ export default function Home() {
     try {
       const r = await fetch("/api/story", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea, genre, minutes }) });
       const d = await r.json(); if (!r.ok) throw new Error(d.error);
-      setStory(d); setActive(1); setStatus(`Movie plan ready: ${d.sceneCount} scenes for ${minutes} minute(s).`);
+      setStory(d); setActive(1); setStatus(`Movie plan ready: ${d.sceneCount} scenes for ${minutes} minute(s).`); void generateProductionPack(d, idea);
       setTimeout(() => document.getElementById("stage-1")?.scrollIntoView({ behavior: "smooth" }), 30);
     } catch (e: unknown) { setStatus(e instanceof Error ? e.message : "Something went wrong."); }
   }
@@ -574,32 +579,11 @@ SHOT ${scene.id}: ${scene.durationSeconds || 5} seconds. Begin exactly where the
   const readyUrl = selectedScene ? videoUrls[selectedScene.id] : "";
 
   return <main className="app-shell">
-    <nav className="topbar"><div className="brand"><div className="brand-icon">🎬</div><div><strong>ViralMovie <span>AI</span></strong><small>Turn Your Ideas Into Viral Movies</small></div></div><div className="top-actions"><a href="/movies" className="top-link">🎞️ Movies</a><a href="/credits" className="top-link">🪙 Credits</a><a href="/owner" className="top-link">👑 Owner</a><button type="button" onClick={() => { window.location.href = "/credits"; }}>👑 Go Premium</button><button type="button" className="profile" onClick={() => { window.location.href = "/settings"; }}>👤 Account⌄</button></div></nav>
+    <nav className="topbar"><div className="brand"><div className="brand-icon">🎬</div><div><strong>ViralMovie <span>AI</span></strong><small>Turn Your Ideas Into Viral Movies</small></div></div><div className="top-actions"><a href="/movies" className="top-link">🎞️ Movies</a><a href="/credits" className="top-link">🪙 Credits</a><a href="/owner" className="top-link">👑 Owner</a><button>👑 Go Premium</button><div className="profile">👤 Account⌄</div></div></nav>
     <div className="layout">
       <aside className="sidebar"><div className="side-links">
-        {["⌂ Dashboard", "🎬 Create Movie", "▣ Create Scene", "▶ My Videos", "☆ Viral Templates", "↗ Social Media", "◉ Credits & Plans", "⚙ Settings"].map((x, i) => {
-          const actions: Array<() => void> = [
-            () => go(0),
-            () => go(0),
-            () => openScenesStep(),
-            () => { window.location.href = "/my-videos"; },
-            () => {
-              setIdea("A cinematic romantic short film with multiple fictional adult characters who meet unexpectedly in a beautiful Italian city. Include natural dialogue, emotional character interactions, original AI music, realistic sound design and a satisfying ending.");
-              setGenre("Romance");
-              setMinutes(1);
-              go(0);
-              setStatus("Romantic movie template loaded. Edit the idea or generate it now.");
-            },
-            () => {
-              setStatus("Social sharing is available after a scene is generated.");
-              setTimeout(() => document.getElementById("preview")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-            },
-            () => { window.location.href = "/credits"; },
-            () => { window.location.href = "/settings"; }
-          ];
-          return <button type="button" key={x} className={i === 1 ? "side-link active" : "side-link"} onClick={actions[i]}>{x}</button>;
-        })}
-      </div><div className="premium-card"><div className="crown">👑</div><h3>Go Premium</h3><p>More videos, more features, more viral content!</p><button type="button" onClick={() => { window.location.href = "/credits"; }}>Upgrade Now</button><div className="film-art">🎥</div></div></aside>
+        {["⌂ Dashboard", "🎬 Create Movie", "▣ Create Scene", "▶ My Videos", "☆ Viral Templates", "↗ Social Media", "◉ Credits & Plans", "⚙ Settings"].map((x, i) => <button key={x} className={i === 1 ? "side-link active" : "side-link"} onClick={() => i === 1 ? go(0) : setStatus(`${x.replace(/^\S+\s/, "")} is coming next.`)}>{x}</button>)}
+      </div><div className="premium-card"><div className="crown">👑</div><h3>Go Premium</h3><p>More videos, more features, more viral content!</p><button>Upgrade Now</button><div className="film-art">🎥</div></div></aside>
       <section className="content">
         <div className="hero-image"><img src="/hero-dashboard.png" alt="ViralMovie AI cinematic studio"/><div className="hero-overlay"></div><div className="hero-copy"><div className="hero-kicker">AI FILM STUDIO</div><h1>AI Makes <span>Films</span> Online</h1><p>Turn one idea into a cinematic movie with AI — story, characters, scenes, video and social sharing.</p><button type="button" className="hero-cta" onClick={() => go(0)}>✦ Start Creating</button></div></div>
         <div className="feature-command card">
@@ -633,7 +617,7 @@ Example: A young astronaut lands on Mars and discovers a mysterious underground 
                 <span>05</span><div><b>Scenes</b><p className="muted">Your story becomes an automatic cinema production plan.</p></div><strong>→</strong>
               </button>
               <div className="create-step"><span>06</span><div><b>Generate Movie</b><div className="field-row"><select aria-label="Movie format" value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select><label style={{display:"flex",alignItems:"center",gap:8}}><span className="muted">Minutes</span><input aria-label="Movie duration in minutes" type="number" min={1} max={60} step={1} value={minutes} onChange={e=>{const n=Math.min(60,Math.max(1,Number(e.target.value)||1));setMinutes(n)}} style={{width:82}} /></label><div className="duration-pills compact">{durations.map(x=><button type="button" key={x} className={minutes===x?"selected":""} onClick={()=>setMinutes(x)}>{x===60?"60m":`${x}m`}</button>)}</div></div><small className="muted">Final movie duration: {minutes} minute{minutes===1?"":"s"} • scenes are generated automatically and merged into ONE final MP4 • 5 seconds per internal clip</small></div></div>
-              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}><button type="button" className="generate" onClick={oneClickMovie}>✦ Generate Full Movie</button><button type="button" className="secondary" onClick={generateStory}>📝 Build Story Plan</button></div><div className="status-line">{status}</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}><button type="button" className="generate" onClick={(e) => { e.preventDefault(); void oneClickMovie(); }}>✦ Generate Full Movie</button><button type="button" className="secondary" onClick={generateStory}>📝 Build Story Plan</button></div><div className="status-line">{status}</div>
             </section>
 
             <section className="card" id="stage-1"><div className="section-head"><h2>⚡ AI Story</h2><span>{story ? "READY" : "WAITING"}</span></div>{story ? <><h3>{story.title}</h3><p className="muted">{story.logline}</p><div className="info-box">{story.sceneCount} planned scenes • {minutes * 60} seconds • 5 seconds per scene</div></> : <div className="info-box">Press Generate Full Movie to create the complete film automatically.</div>}</section>
@@ -644,7 +628,7 @@ Example: A young astronaut lands on Mars and discovers a mysterious underground 
               <button type="button" className="secondary scene-create" onClick={() => { setScenePage(0); openStoryboard(); }}>✦ Refresh Production Plan</button>
               <div className="info-box"><b>Automatic movie mode:</b> {story.sceneCount} internal scenes are planned for {minutes} minute(s). You do not need to generate or merge them manually — Generate Full Movie processes them and creates one final MP4 automatically.</div>
               <div className="scene-grid">{story.scenes.slice(scenePage * 12, scenePage * 12 + 12).map(scene => <div className={`scene-card ${selectedScene?.id === scene.id ? "scene-selected" : ""}`} key={scene.id}><div className="scene-thumb">🎞️<small>#{String(scene.id).padStart(2,"0")}</small></div><div className="scene-main"><b>Scene {String(scene.id).padStart(2,"0")}</b><span className="scene-title">{scene.prompt.split(".")[0]}</span><div className="scene-meta"><span>⏱ 5 sec</span><span>👤 {selectedCharacter?.name || "Characters"}</span><span>🎙 Dialogue</span><span>🎵 Music</span></div><div className="scene-controls"><button type="button" onClick={() => { selectScene(scene); setStatus(`Shot ${scene.id} is part of the automatic film pipeline. You do not need to generate or merge it manually.`); }}>🎬 View</button></div></div></div>)}</div>
-              <button type="button" className="secondary" onClick={()=>{ setStatus("Production beats are generated automatically from your story and duration. Edit the idea and regenerate the movie plan to change the beats."); openStoryboard(); }}>＋ Adjust Production Plan</button><div className="scene-pagination"><button type="button" className="secondary" disabled={scenePage === 0} onClick={() => setScenePage(p => Math.max(0, p - 1))}>← Previous</button><span>Scenes {scenePage * 12 + 1}–{Math.min((scenePage + 1) * 12, story.sceneCount)} of {story.sceneCount}</span><button type="button" className="secondary" disabled={(scenePage + 1) * 12 >= story.sceneCount} onClick={() => setScenePage(p => p + 1)}>Next →</button></div>
+              <button type="button" className="secondary" onClick={()=>setStatus("New scene slot added to the movie plan.")}>＋ Add Production Beat</button><div className="scene-pagination"><button type="button" className="secondary" disabled={scenePage === 0} onClick={() => setScenePage(p => Math.max(0, p - 1))}>← Previous</button><span>Scenes {scenePage * 12 + 1}–{Math.min((scenePage + 1) * 12, story.sceneCount)} of {story.sceneCount}</span><button type="button" className="secondary" disabled={(scenePage + 1) * 12 >= story.sceneCount} onClick={() => setScenePage(p => p + 1)}>Next →</button></div>
             </> }</section>
 
             <section className="card production-order" id="production-order">
