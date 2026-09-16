@@ -26,8 +26,7 @@ export async function POST(request: Request) {
       audio.sfx ? "synchronized ambience, Foley and realistic sound effects" : "no added sound effects",
     ];
     const audioPrompt = `AI AUDIO: Generate synchronized audio together with the video. ${audioParts.join("; ")}. Keep voices, ambience, music and effects coherent with the action and consistent with the movie. Do not use copyrighted songs or imitate a real person's voice.`;
-    const realismPrompt = `VISUAL REALISM: photorealistic live-action cinema, real human actors, natural skin pores and subtle imperfections, physically accurate faces and hands, realistic hair and fabric, natural eye movement and blinking, authentic facial micro-expressions, believable body mechanics, real-world lighting and shadows, practical production design, real camera optics, natural depth of field, subtle film grain, restrained color grading. Avoid any AI-generated look, plastic skin, waxy faces, over-smoothed skin, CGI appearance, uncanny eyes, warped hands, floating objects, impossible physics, excessive sharpness, oversaturated colors, fantasy glow, fake bokeh, artificial motion or slideshow-like movement. No umbrella unless explicitly required by the story. Keep the same fictional actors, faces, voices, wardrobe, props and locations across every shot.`;
-    const finalPrompt = `${prompt}\n\n${realismPrompt}\n\n${audioPrompt}`.slice(0, 3000);
+    const finalPrompt = `${prompt}\n\n${audioPrompt}`.slice(0, 2000);
     if (body?.adultConfirmed !== true) return NextResponse.json({ ok: false, message: "You must confirm that you are 18+ and agree to the ViralMovie safety rules." }, { status: 400 });
     const key = process.env.FAL_KEY?.trim();
     if (!key) return NextResponse.json({ ok: false, message: "The video service is temporarily unavailable." }, { status: 500 });
@@ -36,7 +35,7 @@ export async function POST(request: Request) {
       input: {
         prompt: finalPrompt,
         aspect_ratio,
-        duration: 5,
+        duration: Math.min(16, Math.max(1, Number(durationSeconds) || 8)),
         resolution: "540p",
         audio: true,
       },

@@ -74,3 +74,6 @@ Fixed the fal.ai queue submission payload. The queue API expects the model input
 - Set `OWNER_PUBLISH_TOKEN` in Vercel. Keep it server-side.
 - Set `KV_REST_API_URL` and `KV_REST_API_TOKEN` (or the equivalent `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) for persistent Movies storage.
 - fal's API key remains server-side in `FAL_KEY`.
+
+
+ViralMovie production timing: AI generation uses 8-second internal shots. The final renderer concatenates the shots and trims the result to the exact selected movie duration (1–60 minutes). The AI model itself is not asked to generate a 60-minute single clip.

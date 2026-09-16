@@ -226,18 +226,18 @@ export default function Home() {
       const movieScenes: Scene[] = Array.isArray(d.scenes) ? d.scenes : [];
       setActive(4);
       setScenePage(0);
-      setStatus(`ONE-CLICK MOVIE: generating the full ${minutes}-minute movie — 0/${movieScenes.length} clips...`);
+      setStatus(`ONE-CLICK MOVIE: generating the full ${minutes}-minute movie — 0/${movieScenes.length} production shots...`);
       const movieUrls: Record<number, string> = {};
       for (let i = 0; i < movieScenes.length; i++) {
         const scene = movieScenes[i];
         setSelectedScene(scene);
-        setStatus(`ONE-CLICK MOVIE: generating clip ${i + 1}/${movieScenes.length}...`);
+        setStatus(`ONE-CLICK MOVIE: generating production shot ${i + 1}/${movieScenes.length}...`);
         const url = await generateScene(scene);
-        if (!url) throw new Error(`Movie generation stopped at clip ${i + 1}.`);
+        if (!url) throw new Error(`Movie generation stopped at production shot ${i + 1}.`);
         movieUrls[scene.id] = url;
       }
 
-      setStatus(`ONE-CLICK MOVIE: all ${movieScenes.length} clips are ready (${minutes} minute${minutes===1?"":"s"}). Starting Auto Editor...`);
+      setStatus(`ONE-CLICK MOVIE: all ${movieScenes.length} production shots are ready (${minutes} minute${minutes===1?"":"s"}). Starting final render...`);
       setActive(6);
       setTimeout(() => document.getElementById("stage-6")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
       await autoEditMovie(movieUrls, d);
@@ -328,7 +328,7 @@ CHARACTER BIBLE:
 ${characterBible}
 AUDIO CONTINUITY:
 Generate synchronized original dialogue/voice acting when scripted, natural room tone, ambience, Foley and effects, plus an original cinematic score that matches the movie's emotional arc. Keep every character voice and audio atmosphere consistent with the whole film. No copyrighted songs and no imitation of real people's voices.
-SHOT ${scene.id}: ${scene.durationSeconds || 5} seconds. Begin exactly where the previous shot logically ends; finish on an action, look or camera position that can continue into the next shot.`;
+SHOT ${scene.id}: ${scene.durationSeconds || 8} seconds. Begin exactly where the previous shot logically ends; finish on an action, look or camera position that can continue into the next shot.`;
   }
 
   async function generateScene(scene: Scene): Promise<string | null> {
@@ -343,7 +343,7 @@ SHOT ${scene.id}: ${scene.durationSeconds || 5} seconds. Begin exactly where the
       const timeout = window.setTimeout(() => controller.abort(), 30000);
       let r: Response;
       try {
-        r = await fetch("/api/video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: cinemaPrompt(scene), aspect_ratio: aspect, audio, adultConfirmed }), signal: controller.signal });
+        r = await fetch("/api/video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: cinemaPrompt(scene), aspect_ratio: aspect, audio, adultConfirmed, durationSeconds: scene.durationSeconds || 8 }), signal: controller.signal });
       } finally {
         window.clearTimeout(timeout);
       }
@@ -365,7 +365,7 @@ SHOT ${scene.id}: ${scene.durationSeconds || 5} seconds. Begin exactly where the
       }
       setGenerated(x => ({ ...x, [scene.id]: true }));
       setVideoState(x => ({ ...x, [scene.id]: "IN_QUEUE" }));
-      setStatus(`Scene ${scene.id}: IN_QUEUE — AI is generating this 5-second cinematic shot with synchronized audio...`);
+      setStatus(`Scene ${scene.id}: IN_QUEUE — AI is generating this ${scene.durationSeconds || 8}-second cinematic shot with synchronized audio...`);
       return await pollScene(scene.id, rid, d.statusUrl || d.status_url || d.data?.status_url || d.data?.statusUrl, d.responseUrl || d.response_url || d.data?.response_url || d.data?.responseUrl);
     } catch (e: unknown) {
       setVideoState(x => ({ ...x, [scene.id]: "FAILED" }));
@@ -418,7 +418,7 @@ SHOT ${scene.id}: ${scene.durationSeconds || 5} seconds. Begin exactly where the
             return null;
           }
           const url = rd?.data?.video?.url || rd?.data?.data?.video?.url || rd?.data?.video_url || rd?.data?.videoUrl || rd?.video?.url || rd?.video_url || rd?.videoUrl || rd?.data?.url || rd?.url;
-          if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); if (audio.dialogue || audio.narration) void generateSubtitlesForScene((story?.scenes || []).find(s => s.id === sceneId) || selectedScene || { id: sceneId, durationSeconds: 5, prompt: "" } as Scene, url); setStatus(`Scene ${sceneId} is READY — audio, subtitles and continuity are being finalized automatically.`); return url; }
+          if (url) { setVideoUrls(x => ({ ...x, [sceneId]: url })); setVideoState(x => ({ ...x, [sceneId]: "READY" })); if (audio.dialogue || audio.narration) void generateSubtitlesForScene((story?.scenes || []).find(s => s.id === sceneId) || selectedScene || { id: sceneId, durationSeconds: 8, prompt: "" } as Scene, url); setStatus(`Scene ${sceneId} is READY — audio, subtitles and continuity are being finalized automatically.`); return url; }
           else { setVideoState(x => ({ ...x, [sceneId]: "FAILED" })); setStatus("Generation finished, but Vidu returned no video URL."); }
           return null;
         }
@@ -513,7 +513,8 @@ SHOT ${scene.id}: ${scene.durationSeconds || 5} seconds. Begin exactly where the
       const finalList = batchFiles.map(file => `file '${file}'`).join("\n");
       await ffmpeg.writeFile("final-batches.txt", finalList);
       setEditingState("RENDERING"); setEditingMessage(`AI Director is assembling ${batchFiles.length} production reels into the final movie...`);
-      await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "final-batches.txt", "-c", "copy", "-movflags", "+faststart", "movie-final-base.mp4"]);
+      const targetSeconds = Math.max(60, Math.min(60 * 60, Math.round((Number(activeStory?.sceneCount ? minutes : 1) || 1) * 60)));
+      await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "final-batches.txt", "-t", String(targetSeconds), "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac", "-movflags", "+faststart", "movie-final-base.mp4"]);
       if (customMusicFile) {
         const musicName = `custom-music${customMusicFile.name.toLowerCase().endsWith(".wav") ? ".wav" : customMusicFile.name.toLowerCase().endsWith(".m4a") ? ".m4a" : ".mp3"}`;
         await ffmpeg.writeFile(musicName, await fetchFile(customMusicFile));
@@ -532,14 +533,14 @@ SHOT ${scene.id}: ${scene.durationSeconds || 5} seconds. Begin exactly where the
       const blob = new Blob([buffer], { type: "video/mp4" });
       const url = URL.createObjectURL(blob);
       setFinalMovieUrl(url);
-      setEditingState("READY"); setEditingMessage(`FINAL FILM READY: ${scenes.length} cinematic shots assembled automatically into one MP4 (${activeStory ? ((Number(minutes)||1)) : 1}-minute target).`);
+      setEditingState("READY"); setEditingMessage(`FINAL FILM READY: ${scenes.length} cinematic shots assembled automatically into one MP4 (${activeStory ? ((Number(minutes)||1)) : 1}-minute target, exact duration).`);
     } catch (e) {
       setEditingState("FAILED"); setEditingMessage(e instanceof Error ? `Auto Edit failed: ${e.message}` : "Auto Edit failed in this browser. Try fewer scenes or use a modern browser.");
     }
   }
 
   function downloadFinalMovie() {
-    if (!finalMovieUrl) { setEditingMessage("Create the complete movie with Generate Full Movie first."); return; }
+    if (!finalMovieUrl) { setEditingMessage("Create the final MP4 with Auto Edit first."); return; }
     const a = document.createElement("a"); a.href = finalMovieUrl; a.download = `${(story?.title || "ViralMovie").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase() || "viralmovie"}-final.mp4`; a.click();
   }
 
@@ -611,11 +612,11 @@ Example: A young astronaut lands on Mars and discovers a mysterious underground 
               <button type="button" className="create-step create-step-button" onClick={openScenesStep}>
                 <span>05</span><div><b>Scenes</b><p className="muted">Your story becomes an automatic cinema production plan.</p></div><strong>→</strong>
               </button>
-              <div className="create-step"><span>06</span><div><b>Generate Movie</b><div className="field-row"><select aria-label="Movie format" value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select><label style={{display:"flex",alignItems:"center",gap:8}}><span className="muted">Minutes</span><input aria-label="Movie duration in minutes" type="number" min={1} max={60} step={1} value={minutes} onChange={e=>{const n=Math.min(60,Math.max(1,Number(e.target.value)||1));setMinutes(n)}} style={{width:82}} /></label><div className="duration-pills compact">{durations.map(x=><button type="button" key={x} className={minutes===x?"selected":""} onClick={()=>setMinutes(x)}>{x===60?"60m":`${x}m`}</button>)}</div></div><small className="muted">Final movie duration: {minutes} minute{minutes===1?"":"s"} • scenes are generated automatically and merged into ONE final MP4 • 5 seconds per internal clip • Full Movie mode automatically assembles all clips</small></div></div>
+              <div className="create-step"><span>06</span><div><b>Generate Movie</b><div className="field-row"><select aria-label="Movie format" value={aspect} onChange={e => setAspect(e.target.value)}><option>16:9</option><option>9:16</option><option>1:1</option></select><label style={{display:"flex",alignItems:"center",gap:8}}><span className="muted">Minutes</span><input aria-label="Movie duration in minutes" type="number" min={1} max={60} step={1} value={minutes} onChange={e=>{const n=Math.min(60,Math.max(1,Number(e.target.value)||1));setMinutes(n)}} style={{width:82}} /></label><div className="duration-pills compact">{durations.map(x=><button type="button" key={x} className={minutes===x?"selected":""} onClick={()=>setMinutes(x)}>{x===60?"60m":`${x}m`}</button>)}</div></div><small className="muted">Final movie duration: {minutes} minute{minutes===1?"":"s"} • scenes are generated automatically and merged into ONE final MP4 • 5 seconds per internal clip</small></div></div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}><button type="button" className="generate" onClick={oneClickMovie}>✦ Generate Full Movie</button><button type="button" className="secondary" onClick={generateStory}>📝 Build Story Plan</button></div><div className="status-line">{status}</div>
             </section>
 
-            <section className="card" id="stage-1"><div className="section-head"><h2>⚡ AI Story</h2><span>{story ? "READY" : "WAITING"}</span></div>{story ? <><h3>{story.title}</h3><p className="muted">{story.logline}</p><div className="info-box">{story.sceneCount} planned scenes • {minutes * 60} seconds • 5 seconds per internal shot</div></> : <div className="info-box">Press Generate Full Movie to create the complete film automatically.</div>}</section>
+            <section className="card" id="stage-1"><div className="section-head"><h2>⚡ AI Story</h2><span>{story ? "READY" : "WAITING"}</span></div>{story ? <><h3>{story.title}</h3><p className="muted">{story.logline}</p><div className="info-box">{story.sceneCount} planned shots • {minutes * 60} seconds target • 8-second production shots • final render trims to exact duration</div></> : <div className="info-box">Press Generate Full Movie to create the complete film automatically.</div>}</section>
 
             <section className="card" id="stage-2"><div className="section-head"><h2>👤 Character Bible</h2><span>{selectedCharacter ? `SELECTED: ${selectedCharacter.name.toUpperCase()}` : "CONSISTENCY"}</span></div><p className="muted">Keep the same character identity across 20, 50 or 100 scenes.</p><button type="button" className="secondary" onClick={openCharacters}>✦ {characters.length ? "Refresh Character Bible" : "Create Character Bible"}</button>{characters.length > 0 && <div className="character-bible-grid">{characters.map(c=><button type="button" className={`character character-bible ${selectedCharacterId===c.id?"character-selected":""}`} key={c.id} onClick={()=>selectCharacter(c)}><div className="avatar">◉</div><b>{c.name}</b><span className="character-role">{c.role}</span><small>Age: {c.age || "—"}</small><small>Personality: {c.personality || "—"}</small><small>Wardrobe: {c.wardrobe || "—"}</small><small>Voice: {c.voice || "—"}</small><em>🔒 Character Consistency</em></button>)}</div>}</section>
 
