@@ -108,7 +108,7 @@ export default function Home() {
 
   async function generateSubtitlesForScene(scene: Scene, url: string) {
     try {
-      const r = await fetch("/api/subtitles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ audio_url: url, start_seconds: (scene.id - 1) * 5 }) });
+      const r = await fetch("/api/subtitles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ audio_url: url, start_seconds: (scene.id - 1) * (scene.durationSeconds || 8) }) });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d?.ok && d?.srt) setSubtitleText(prev => prev ? `${prev.trim()}\n${d.srt.trim()}` : d.srt.trim());
     } catch {}
@@ -359,11 +359,32 @@ SHOT ${scene.id}: ${scene.durationSeconds || 8} seconds. Begin exactly where the
 
   async function autoEditMovie(overrideUrls?: Record<number, string>, overrideStory?: Story) {
     const activeStory = overrideStory || story;
-    const activeUrls = overrideUrls || videoUrls;
-    const scenes = (activeStory?.scenes || []).filter(s => activeUrls[s.id]);
-    if (scenes.length < 2) { setEditingMessage("Generate the complete movie first; final assembly is automatic."); setEditingState("WAITING"); return; }
-    setEditingState("LOADING"); setEditingMessage(`Preparing ${scenes.length} scenes for automatic editing...`);
+    const allScenes = activeStory?.scenes || [];
+    const workingUrls: Record<number, string> = { ...(overrideUrls || videoUrls) };
+    if (!activeStory || allScenes.length === 0) {
+      setEditingMessage("Create the movie story first, then render the final MP4.");
+      setEditingState("WAITING");
+      return;
+    }
+    setEditingState("LOADING");
     try {
+      // RENDER FINAL MOVIE is also a recovery button: if only some production
+      // shots are ready, generate the missing shots automatically before merging.
+      const missingScenes = allScenes.filter(s => !workingUrls[s.id]);
+      if (missingScenes.length) {
+        setEditingMessage(`Preparing the complete movie: ${allScenes.length - missingScenes.length}/${allScenes.length} shots ready...`);
+        for (let i = 0; i < missingScenes.length; i++) {
+          const scene = missingScenes[i];
+          setSelectedScene(scene);
+          setEditingMessage(`Generating missing production shot ${i + 1}/${missingScenes.length}...`);
+          const url = await generateScene(scene);
+          if (!url) throw new Error(`Generation stopped at production shot ${scene.id}.`);
+          workingUrls[scene.id] = url;
+        }
+      }
+      const scenes = allScenes.filter(s => workingUrls[s.id]);
+      if (scenes.length === 0) throw new Error("No completed production shots are available for rendering.");
+      setEditingMessage(`Preparing ${scenes.length} production shots for automatic editing...`);
       const ffmpeg = new FFmpeg();
       const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
       await ffmpeg.load({
@@ -381,14 +402,21 @@ SHOT ${scene.id}: ${scene.durationSeconds || 8} seconds. Begin exactly where the
           const scene = batch[j];
           const globalIndex = start + j;
           setEditingMessage(`Auto Edit: importing shot ${globalIndex + 1}/${scenes.length}...`);
-          const proxy = `/api/video/download?url=${encodeURIComponent(activeUrls[scene.id])}`;
-          await ffmpeg.writeFile(`scene-${globalIndex}.mp4`, await fetchFile(proxy));
+          const proxy = `/api/video/download?url=${encodeURIComponent(workingUrls[scene.id])}`;
+          const source = await fetchFile(proxy);
+          await ffmpeg.writeFile(`scene-${globalIndex}.mp4`, source);
+          // Normalize every source before concat. AI video responses can have
+          // slightly different audio/video parameters; concat-copy is otherwise
+          // prone to fail or create a broken final file.
+          await ffmpeg.exec(["-i", `scene-${globalIndex}.mp4`, "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2", "-r", "24", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "128k", "-movflags", "+faststart", `norm-${globalIndex}.mp4`]);
+          try { await ffmpeg.deleteFile(`scene-${globalIndex}.mp4`); } catch {}
+
         }
-        const list = batch.map((_, j) => `file 'scene-${start + j}.mp4'`).join("\n");
+        const list = batch.map((_, j) => `file 'norm-${start + j}.mp4'`).join("\n");
         await ffmpeg.writeFile(`batch-${batchIndex}.txt`, list);
         await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", `batch-${batchIndex}.txt`, "-c", "copy", `batch-${batchIndex}.mp4`]);
         batchFiles.push(`batch-${batchIndex}.mp4`);
-        for (let j = 0; j < batch.length; j++) { try { await ffmpeg.deleteFile(`scene-${start + j}.mp4`); } catch {} }
+        for (let j = 0; j < batch.length; j++) { try { await ffmpeg.deleteFile(`norm-${start + j}.mp4`); } catch {} }
         try { await ffmpeg.deleteFile(`batch-${batchIndex}.txt`); } catch {}
       }
       const finalList = batchFiles.map(file => `file '${file}'`).join("\n");
@@ -405,7 +433,7 @@ SHOT ${scene.id}: ${scene.durationSeconds || 8} seconds. Begin exactly where the
       const blob = new Blob([buffer], { type: "video/mp4" });
       const url = URL.createObjectURL(blob);
       setFinalMovieUrl(url);
-      setEditingState("READY"); setEditingMessage(`FINAL FILM READY: ${scenes.length} cinematic shots assembled automatically into one MP4 (${activeStory ? ((Number(minutes)||1)) : 1}-minute target, exact duration).`);
+      setEditingState("READY"); setEditingMessage(`FINAL FILM READY: ${scenes.length} cinematic shots assembled automatically into one MP4 (${Math.max(1, Math.round(Number(minutes) || 1))}-minute target).`);
     } catch (e) {
       setEditingState("FAILED"); setEditingMessage(e instanceof Error ? `Auto Edit failed: ${e.message}` : "Auto Edit failed in this browser. Try fewer scenes or use a modern browser.");
     }
@@ -499,7 +527,7 @@ Example: A young astronaut lands on Mars and discovers a mysterious underground 
 
             <section className="card" id="stage-5"><div className="section-head"><h2>🔊 06 · Sound Design + 07 · Music</h2><span>AUTOMATIC</span></div><div className="info-box"><b>05 Voice + Dialogue</b> → <b>06 Sound Design</b> → <b>07 Music</b>. These layers are one continuous soundtrack; the controls below configure the same movie audio pipeline.</div><div className="audio-row">{(["dialogue","narration","sfx","music"] as const).map(k => <button key={k} type="button" onClick={() => setAudio(a => ({ ...a, [k]: !a[k] }))}>{audio[k] ? "✓" : "○"} {k.toUpperCase()}</button>)}</div><p className="muted">Every shot receives automatic cinema audio: character dialogue and voice acting, narration when appropriate, original background score, ambience, Foley and realistic sound effects. Audio continuity follows the movie's characters and story. You can keep all four enabled for the most cinematic result.</p></section>
 
-            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ 09 · Final Movie</h2><span>{editingState === "READY" ? "READY" : editingState}</span></div><div className="director-tools"><div className="director-card auto-edit-card"><div className="director-title"><span>🎬</span><div><b>FINAL MOVIE RENDER</b><small>All generated production shots are assembled into one final MP4.</small></div></div><button type="button" className="generate" onClick={() => void autoEditMovie()} disabled={editingState === "LOADING" || editingState === "RENDERING"}>{editingState === "LOADING" ? "⏳ Loading editor..." : editingState === "RENDERING" ? "🎬 Rendering final MP4..." : "🎬 RENDER FINAL MOVIE"}</button><p>{editingMessage}</p>{finalMovieUrl && <><video className="final-movie-player" controls playsInline src={finalMovieUrl}/><button type="button" className="download" onClick={downloadFinalMovie}>⇩ Download Final MP4</button></>}</div></div><div className="project-map"><span>🎬 Story</span><span>🎥 Shots</span><span>🔊 Audio</span><span>💬 Subtitles</span><span>🎞 Final MP4</span><span>🌐 Publish</span></div><div className="timeline-label">MOVIE TIMELINE</div><div className="timeline"><div className="timeline-track">{(story?.scenes || []).slice(0,24).map(scene=><button key={scene.id} type="button" className={selectedScene?.id===scene.id?"timeline-scene selected":"timeline-scene"} onClick={()=>{selectScene(scene);go(4)}}>Scene {String(scene.id).padStart(2,"0")}</button>)}</div></div><div className="movie-tile"><strong>{minutes===60?"1h":`${minutes} min`}</strong><span>{story?.sceneCount || 0} scenes planned • {Object.keys(generated).length} generated • {Object.keys(videoUrls).length} ready</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">One-Click Movie generates the shots, audio and subtitles in sequence, then assembles them into one final MP4. No manual scene merging is required. Long films are processed in small internal batches to reduce memory pressure.</p></section>
+            <section className="card" id="stage-6"><div className="section-head"><h2>🎞️ 09 · Final Movie</h2><span>{editingState === "READY" ? "READY" : editingState}</span></div><div className="director-tools"><div className="director-card auto-edit-card"><div className="director-title"><span>🎬</span><div><b>FINAL MOVIE RENDER</b><small>All generated production shots are assembled into one final MP4.</small></div></div><button type="button" className="generate" onClick={() => void autoEditMovie()} disabled={editingState === "LOADING" || editingState === "RENDERING"}>{editingState === "LOADING" ? "⏳ Preparing movie..." : editingState === "RENDERING" ? "🎬 Rendering final MP4..." : "🎬 COMPLETE & RENDER FINAL MOVIE"}</button><p>{editingMessage}</p>{finalMovieUrl && <><video className="final-movie-player" controls playsInline src={finalMovieUrl}/><button type="button" className="download" onClick={downloadFinalMovie}>⇩ Download Final MP4</button></>}</div></div><div className="project-map"><span>🎬 Story</span><span>🎥 Shots</span><span>🔊 Audio</span><span>💬 Subtitles</span><span>🎞 Final MP4</span><span>🌐 Publish</span></div><div className="timeline-label">MOVIE TIMELINE</div><div className="timeline"><div className="timeline-track">{(story?.scenes || []).slice(0,24).map(scene=><button key={scene.id} type="button" className={selectedScene?.id===scene.id?"timeline-scene selected":"timeline-scene"} onClick={()=>{selectScene(scene);go(4)}}>Scene {String(scene.id).padStart(2,"0")}</button>)}</div></div><div className="movie-tile"><strong>{minutes===60?"1h":`${minutes} min`}</strong><span>{story?.sceneCount || 0} scenes planned • {Object.keys(generated).length} generated • {Object.keys(videoUrls).length} ready</span></div>{selectedScene && videoError[selectedScene.id] && <div className="error-box"><b>Last video error:</b> {videoError[selectedScene.id]}</div>}<p className="muted">One-Click Movie generates the shots, audio and subtitles in sequence, then assembles them into one final MP4. No manual scene merging is required. Long films are processed in small internal batches to reduce memory pressure.</p></section>
 
           </div>
 
