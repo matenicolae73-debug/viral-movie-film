@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     const safety = moderatePrompt(prompt);
     if (!safety.ok) return NextResponse.json({ ok: false, message: safety.reason, blocked: true, category: safety.category }, { status: 400 });
     const aspect_ratio = ["16:9", "9:16", "1:1", "4:3", "3:4"].includes(String(body?.aspect_ratio)) ? String(body.aspect_ratio) : "16:9";
+    const durationSeconds = Math.min(16, Math.max(1, Number(body?.durationSeconds) || 8));
     const audio = {
       dialogue: body?.audio?.dialogue !== false,
       narration: body?.audio?.narration !== false,
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
       input: {
         prompt: finalPrompt,
         aspect_ratio,
-        duration: Math.min(16, Math.max(1, Number(durationSeconds) || 8)),
+        duration: durationSeconds,
         resolution: "540p",
         audio: true,
       },

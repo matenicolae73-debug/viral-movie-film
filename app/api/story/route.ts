@@ -9,10 +9,10 @@ export async function POST(req: Request) {
   if (!idea) return NextResponse.json({ error: "Idea is required." }, { status: 400 });
 
   const safeMinutes = Math.min(60, Math.max(1, minutes));
-  const sceneCount = Math.max(12, Math.round(safeMinutes * 12));
-  // Long-form planning: 12 cinematic 5-second scenes per minute.
-  // Return the complete scene plan; the UI paginates it so 60-minute movies
-  // can still be navigated without losing scenes.
+  const shotSeconds = 8;
+  const sceneCount = Math.max(1, Math.ceil((safeMinutes * 60) / shotSeconds));
+  // One simple production pipeline: the movie is built from 8-second cinematic shots
+  // and assembled into one final MP4 trimmed to the exact requested duration.
   const scenes = Array.from({ length: sceneCount }, (_, i) => {
     const id = i + 1;
     const progress = id / sceneCount;
