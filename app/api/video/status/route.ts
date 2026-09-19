@@ -4,7 +4,7 @@ import { fal } from "@fal-ai/client";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MODEL = process.env.FAL_VIDEO_MODEL?.trim() || "fal-ai/vidu/q3/text-to-video/turbo";
+const MODEL = "alibaba/wan-3.0/text-to-video";
 
 function canonicalUrl(requestId: string, action: string) {
   const encoded = encodeURIComponent(requestId);

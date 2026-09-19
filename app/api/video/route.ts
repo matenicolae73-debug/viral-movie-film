@@ -4,7 +4,7 @@ import { fal } from "@fal-ai/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const MODEL = process.env.FAL_VIDEO_MODEL?.trim() || "fal-ai/vidu/q3/text-to-video/turbo";
+const MODEL = "alibaba/wan-3.0/text-to-video";
 
 export async function POST(request: Request) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     const safety = moderatePrompt(prompt);
     if (!safety.ok) return NextResponse.json({ ok: false, message: safety.reason, blocked: true, category: safety.category }, { status: 400 });
     const aspect_ratio = ["16:9", "9:16", "1:1", "4:3", "3:4"].includes(String(body?.aspect_ratio)) ? String(body.aspect_ratio) : "16:9";
-    const durationSeconds = Math.min(16, Math.max(1, Number(body?.durationSeconds) || 8));
+    const durationSeconds = Math.min(60, Math.max(1, Math.round(Number(body?.durationSeconds) || 1)));
     const audio = {
       dialogue: body?.audio?.dialogue !== false,
       narration: body?.audio?.narration !== false,
@@ -37,8 +37,10 @@ export async function POST(request: Request) {
         prompt: finalPrompt,
         aspect_ratio,
         duration: durationSeconds,
-        resolution: "540p",
+        resolution: "480p",
         audio: true,
+        enable_prompt_expansion: true,
+        enable_thinking: true,
       },
     });
     const requestId = (submitted as { request_id?: string }).request_id;

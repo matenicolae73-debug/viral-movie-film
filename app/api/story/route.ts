@@ -4,36 +4,28 @@ export async function POST(req: Request) {
   const b = await req.json().catch(() => ({}));
   const idea = String(b?.idea || "").trim();
   const genre = String(b?.genre || "Cinematic");
-  const minutes = Number(b?.minutes || 1);
+  const durationSeconds = Number(b?.durationSeconds ?? b?.seconds ?? 1);
 
   if (!idea) return NextResponse.json({ error: "Idea is required." }, { status: 400 });
 
-  const safeMinutes = Math.min(60, Math.max(1, minutes));
-  const shotSeconds = 8;
-  const sceneCount = Math.max(1, Math.ceil((safeMinutes * 60) / shotSeconds));
-  // One simple production pipeline: the movie is built from 8-second cinematic shots
-  // and assembled into one final MP4 trimmed to the exact requested duration.
-  const scenes = Array.from({ length: sceneCount }, (_, i) => {
-    const id = i + 1;
-    const progress = id / sceneCount;
-    const act = progress <= 0.25 ? "ACT I — setup and discovery" : progress <= 0.5 ? "ACT II — rising conflict" : progress <= 0.75 ? "ACT III — escalation and turning point" : "ACT IV — climax and resolution";
-    const beat = id % 12 === 1 ? "establish the location and visual context" : id % 12 === 6 ? "advance the story with a meaningful character action or reveal" : id % 12 === 0 ? "end the beat with a visual hook that naturally leads into the next scene" : "continue the previous action with clear cause-and-effect";
-    return {
-      id,
-      durationSeconds: shotSeconds,
-      act,
-      prompt: `Feature-film shot ${id} of ${sceneCount} for an original ${genre.toLowerCase()} movie. Core story: ${idea}. ${act}. Story beat: ${beat}. This shot must be a direct continuation of the same movie, with cause-and-effect from the previous shot and a visual/action handoff to the next. Preserve the same fictional cast, faces, hair, age, body proportions, wardrobe, props, locations, weather, time of day, screen direction, geography, lighting and color grade. Use realistic actor performance, natural eye-lines, believable body mechanics, physically plausible motion, cinematic composition, motivated camera movement, depth of field, production-design detail, realistic skin texture and professional film lighting. Avoid random new characters, costume changes, location jumps, duplicated people, distorted hands, plastic faces or unrelated events. Include only story-relevant dialogue and action. Generate synchronized original audio: consistent character voices, dialogue when appropriate, natural room tone, ambience, Foley, realistic effects and an original cinematic score that follows the emotional arc. No copyrighted songs and no imitation of real people's voices.`
-    };
-  });
+  const safeSeconds = Math.min(60, Math.max(1, Math.round(durationSeconds)));
+  const sceneCount = 1;
+  const scenes = [{
+    id: 1,
+    durationSeconds: safeSeconds,
+    act: "CONTINUOUS SHOT — complete story in one uninterrupted video",
+    prompt: `Create ONE single continuous ${safeSeconds}-second ${genre.toLowerCase()} cinematic video from this story idea: ${idea}. Tell the complete requested moment as one uninterrupted shot, not a storyboard and not multiple scenes. Preserve the same fictional characters, faces, hair, age, body proportions, wardrobe, props, location, weather, time of day, screen direction, lighting and color grade throughout. Use realistic actor performance, natural eye-lines, believable body mechanics, physically plausible motion, cinematic camera movement and professional film lighting. The camera may move naturally within the same continuous shot, but do not cut to separate scenes, do not jump locations, do not introduce unrelated events and do not reset the action. Include only story-relevant dialogue and action. Generate synchronized original audio with consistent character voices, natural room tone, ambience, Foley, realistic effects and an original cinematic score. No copyrighted songs and no imitation of real people's voices.`
+  }];
+
 
   return NextResponse.json({
     ok: true,
     demo: true,
     title: "ViralMovie Project",
-    logline: `A ${genre.toLowerCase()} movie built from: ${idea}`,
+    logline: `A ${genre.toLowerCase()} continuous video built from: ${idea}`,
     sceneCount,
-    visibleScenes: sceneCount,
+    visibleScenes: 1,
     scenes,
-    note: `Complete long-film plan: ${sceneCount} scenes × ${shotSeconds} seconds, trimmed to the exact requested movie duration at final render.`
+    note: `Single continuous video: ${safeSeconds} second${safeSeconds === 1 ? "" : "s"}. No internal scene splitting or multi-scene assembly.`
   });
 }
